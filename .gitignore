@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
  .corsor/*
+Frontend/.env
+Frontend/package-lock.json
+Backend/package-lock.json
+Backend/.env
