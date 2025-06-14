@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -7,27 +6,28 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Code, Mail, Lock, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Login = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const { login } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
 
-    // Simulate login process
-    setTimeout(() => {
-      if (email === "demo@example.com" && password === "demo123") {
-        window.location.href = "/dashboard";
-      } else {
-        setError("Invalid credentials. Try demo@example.com / demo123");
-      }
+    try {
+      const result = await login(email, password);
+      if (!result.success) setError(result.message);
+    } catch (e) {
+      setError((e as Error).message ?? 'Unexpected error');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

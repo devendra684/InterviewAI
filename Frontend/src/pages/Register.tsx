@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Code, Mail, Lock, User, ArrowLeft, Users, UserCheck } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -21,10 +21,14 @@ const Register = () => {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
+  const { register } = useAuth();
+  const navigate = useNavigate();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccess(false);
 
     if (formData.password !== formData.confirmPassword) {
       setError("Passwords do not match");
@@ -38,11 +42,26 @@ const Register = () => {
       return;
     }
 
-    // Simulate registration process
-    setTimeout(() => {
-      setSuccess(true);
+    try {
+      const result = await register(
+        formData.email,
+        formData.password,
+        formData.name,
+        formData.role
+      );
+      if (result.success) {
+        setSuccess(true);
+      } else {
+        setError(result.message);
+      }
+    } catch (err: unknown) {
+      setError(
+        err instanceof Error ? err.message : "Registration failed. Please try again."
+      );
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
+    setIsLoading(false);
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -66,11 +85,11 @@ const Register = () => {
             <p className="text-sm text-gray-600 text-center">
               Click the link in your email to verify your account and complete the registration process.
             </p>
-            <Button 
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              onClick={() => window.location.href = "/login"}
-            >
-              Continue to Sign In
+            <Button
+               className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              onClick={() => navigate("/login")}
+             >
+              Go to Login
             </Button>
             <p className="text-xs text-gray-500 text-center">
               Didn't receive the email? Check your spam folder or{" "}

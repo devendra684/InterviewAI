@@ -1,0 +1,148 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                  String          @id @default(cuid())
+  email               String          @unique
+  password            String
+  name                String?
+  role                UserRole        @default(CANDIDATE)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  feedbacks           Feedback[]
+  notes               InterviewNote[]
+  candidateInterviews Interview[]     @relation("CandidateInterviews")
+  interviews          Interview[]     @relation("InterviewerInterviews")
+  questions           Question[]
+
+  @@map("users")
+}
+
+model Interview {
+  id            String          @id @default(cuid())
+  title         String
+  company       String
+  description   String?
+  status        InterviewStatus @default(SCHEDULED)
+  duration      Int             @default(3600)
+  startTime     DateTime?
+  endTime       DateTime?
+  joinCode      String          @unique
+  interviewerId String
+  candidateId   String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  codeSnapshots CodeSnapshot[]
+  feedback      Feedback?
+  notes         InterviewNote[]
+  candidate     User?           @relation("CandidateInterviews", fields: [candidateId], references: [id])
+  interviewer   User            @relation("InterviewerInterviews", fields: [interviewerId], references: [id])
+  violations    Violation[]
+  questions     Question[]      @relation("InterviewQuestions")
+
+  @@map("interviews")
+}
+
+model CodeSnapshot {
+  id          String    @id @default(cuid())
+  filename    String
+  language    String
+  code        String
+  transcript  String
+  timestamp   DateTime  @default(now())
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@map("code_snapshots")
+}
+
+model Feedback {
+  id                           String    @id @default(cuid())
+  overallScore                 Int
+  strengths                    String[]
+  areasForImprovement          String[]
+  nextSteps                    String
+  interviewId                  String    @unique
+  userId                       String
+  createdAt                    DateTime  @default(now())
+  codeFeedbackSummary          String?
+  communicationFeedbackSummary String?
+  feedback                     String
+  performance                  Json
+  transcriptDetailedFeedback   String?
+  updatedAt                    DateTime  @updatedAt
+  interview                    Interview @relation(fields: [interviewId], references: [id])
+  user                         User      @relation(fields: [userId], references: [id])
+
+  @@map("feedback")
+}
+
+model InterviewNote {
+  id          String    @id @default(cuid())
+  content     String
+  timestamp   DateTime  @default(now())
+  interviewId String
+  userId      String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@map("interview_notes")
+}
+
+model Violation {
+  id          String        @id @default(cuid())
+  type        ViolationType
+  description String
+  timestamp   DateTime      @default(now())
+  interviewId String
+  interview   Interview     @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@map("violations")
+}
+
+model Question {
+  id          String      @id @default(cuid())
+  title       String
+  description String      @db.Text
+  difficulty  Difficulty  @default(MEDIUM)
+  testCases   Json
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  createdById String
+  user        User        @relation(fields: [createdById], references: [id])
+  interviews  Interview[] @relation("InterviewQuestions")
+
+  @@map("questions")
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ViolationType {
+  WINDOW_BLUR
+  TAB_SWITCH
+  COPY_PASTE
+  EXTERNAL_RESOURCE
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}

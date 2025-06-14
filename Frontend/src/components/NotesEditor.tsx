@@ -1,4 +1,4 @@
-
+import React from 'react';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,10 +6,17 @@ import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Save, Clock, User, Users } from 'lucide-react';
 
-const NotesEditor = () => {
-  const [notes, setNotes] = useState(
-    "# Interview Notes\n\n## Candidate: John Doe\n\n### Technical Skills\n- JavaScript: Strong\n- React: Good understanding\n- Problem-solving: Excellent\n\n### Communication\n- Clear explanations\n- Asks good questions\n- Collaborative approach\n\n### Areas to Explore\n- [ ] System design experience\n- [ ] Testing methodologies\n- [ ] Performance optimization\n\n### Next Steps\n- Schedule follow-up\n- Technical deep-dive session"
-  );
+interface NotesEditorProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+const NotesEditor: React.FC<NotesEditorProps> = ({ value, onChange }) => {
+  const [notes, setNotes] = useState(value);
+
+useEffect(() => {
+  setNotes(value);
+}, [value]);
   const [lastSaved, setLastSaved] = useState(new Date());
   const [isShared, setIsShared] = useState(true);
 
@@ -21,6 +28,7 @@ const NotesEditor = () => {
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setNotes(e.target.value);
+    onChange(e.target.value);
   };
 
   return (
@@ -77,7 +85,7 @@ const NotesEditor = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="mt-3 space-y-2">
+      {/* <div className="mt-3 space-y-2">
         <Separator />
         <div className="text-xs font-medium text-gray-600 mb-2">Quick Actions</div>
         <div className="grid grid-cols-2 gap-2">
@@ -94,10 +102,10 @@ const NotesEditor = () => {
             Add Action Item
           </Button>
         </div>
-      </div>
+      </div> */}
 
       {/* Collaboration Indicator */}
-      {isShared && (
+      {/* {isShared && (
         <Card className="mt-3">
           <CardContent className="p-3">
             <div className="flex items-center space-x-2">
@@ -111,7 +119,7 @@ const NotesEditor = () => {
             </div>
           </CardContent>
         </Card>
-      )}
+      )} */}
     </div>
   );
 };

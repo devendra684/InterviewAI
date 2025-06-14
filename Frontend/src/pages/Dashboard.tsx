@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,70 +15,98 @@ import {
   LogOut,
   Play,
   Eye,
-  MoreHorizontal
+  MoreHorizontal,
+  FileText
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import Navbar from '@/components/Navbar';
+
+interface Interview { // Define an interface for Interview
+  id: string;
+  title: string;
+  company: string;
+  description?: string;
+  status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+  duration: number;
+  startTime?: string;
+  endTime?: string;
+  joinCode: string;
+  interviewerId: string;
+  candidateId?: string;
+  score?: number; // Add score for recent interviews
+  language?: string; // Add language for recent interviews
+}
 
 const Dashboard = () => {
-  const [userRole, setUserRole] = useState("recruiter"); // or "candidate"
+  const [userRole, setUserRole] = useState("candidate"); // Default to candidate for initial render
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const { logout, user, token } = useAuth();
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
 
-  const upcomingInterviews = [
-    {
-      id: 1,
-      title: "Senior Frontend Developer",
-      candidate: "John Smith",
-      candidateEmail: "john@example.com",
-      date: "2024-06-14",
-      time: "14:00",
-      duration: 60,
-      status: "scheduled",
-      language: "JavaScript"
-    },
-    {
-      id: 2,
-      title: "Full Stack Engineer",
-      candidate: "Sarah Johnson",
-      candidateEmail: "sarah@example.com",
-      date: "2024-06-14",
-      time: "16:00",
-      duration: 90,
-      status: "scheduled",
-      language: "Python"
+  useEffect(() => {
+    if (user && user.role) {
+      setUserRole(user.role.toLowerCase());
     }
-  ];
+  }, [user]);
 
-  const recentInterviews = [
-    {
-      id: 3,
-      title: "Backend Developer",
-      candidate: "Mike Wilson",
-      date: "2024-06-13",
-      status: "completed",
-      score: 85,
-      language: "Java"
-    },
-    {
-      id: 4,
-      title: "DevOps Engineer",
-      candidate: "Lisa Chen",
-      date: "2024-06-12",
-      status: "completed",
-      score: 92,
-      language: "Python"
-    }
-  ];
+  useEffect(() => {
+    const fetchInterviews = async () => {
+      if (!token) {
+        setLoading(false);
+        setError("Not authenticated. Please log in.");
+        return;
+      }
+      setLoading(true);
+      const controller = new AbortController();
+      try {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE}/api/interviews`, {
+          headers: { Authorization: `Bearer ${token}` },
+          signal: controller.signal,
+        });
+
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status} ${response.statusText}`);
+        }
+        const data: Interview[] = await response.json();
+        setInterviews(data);
+      } catch (err: any) {
+        console.error("Failed to fetch interviews:", err);
+        setError(err.message || "Failed to load interviews.");
+      } finally {
+        setLoading(false);
+      }
+      return () => controller.abort();
+    };
+    fetchInterviews();
+  }, [token]); // Refetch when token changes (login/logout)
+
+  const upcomingInterviews = interviews.filter(
+    (interview) =>
+      interview.status === "SCHEDULED" &&
+      new Date(interview.startTime || new Date()).getTime() > Date.now()
+  ).sort((a, b) => new Date(a.startTime || '').getTime() - new Date(b.startTime || '').getTime());
+
+  const recentInterviews = interviews.filter(
+    (interview) =>
+      interview.status === "COMPLETED" ||
+      new Date(interview.startTime || new Date()).getTime() < Date.now()
+  ).sort((a, b) => new Date(b.startTime || '').getTime() - new Date(a.startTime || '').getTime());
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "scheduled": return "bg-blue-100 text-blue-800";
-      case "active": return "bg-green-100 text-green-800";
-      case "completed": return "bg-gray-100 text-gray-800";
+      case "SCHEDULED": return "bg-blue-100 text-blue-800";
+      case "IN_PROGRESS": return "bg-green-100 text-green-800";
+      case "COMPLETED": return "bg-gray-100 text-gray-800";
+      case "CANCELLED": return "bg-red-100 text-red-800";
       default: return "bg-gray-100 text-gray-800";
     }
   };
@@ -92,40 +119,12 @@ const Dashboard = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Navigation */}
-      <nav className="bg-white border-b shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Code className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                InterviewAI
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {currentTime.toLocaleTimeString()}
-              </span>
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </Button>
-              <Button variant="ghost" size="sm">
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Navbar />
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-24">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, Alex!
+            Welcome back, {user ? user.name || user.email : 'User'}!
           </h1>
           <p className="text-gray-600">
             {userRole === "recruiter" 
@@ -135,7 +134,7 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats Cards - These are still mock, will integrate later if needed */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -210,8 +209,13 @@ const Dashboard = () => {
           </div>
 
           <TabsContent value="upcoming">
+            {loading && <p className="text-center text-gray-500">Loading interviews...</p>}
+            {error && <p className="text-center text-red-500">Error: {error}</p>}
+            {!loading && !error && upcomingInterviews.length === 0 && (
+              <p className="text-center text-gray-500">No upcoming interviews.</p>
+            )}
             <div className="grid gap-4">
-              {upcomingInterviews.map((interview) => (
+              {!loading && !error && upcomingInterviews.map((interview) => (
                 <Card key={interview.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start">
@@ -223,19 +227,21 @@ const Dashboard = () => {
                           <Badge className={getStatusColor(interview.status)}>
                             {interview.status}
                           </Badge>
-                          <Badge variant="outline">
-                            {interview.language}
-                          </Badge>
+                          {interview.language && (
+                            <Badge variant="outline">
+                              {interview.language}
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-gray-600 mb-3">{interview.candidate}</p>
+                        <p className="text-gray-600 mb-3">{interview.candidateId}</p> {/* Display candidateId for now */}
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
-                            {interview.date}
+                            {interview.startTime ? new Date(interview.startTime).toLocaleDateString() : 'N/A'}
                           </div>
                           <div className="flex items-center">
                             <Clock className="w-4 h-4 mr-1" />
-                            {interview.time} ({interview.duration}min)
+                            {interview.startTime ? new Date(interview.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'} ({interview.duration}min)
                           </div>
                         </div>
                       </div>
@@ -248,6 +254,7 @@ const Dashboard = () => {
                         </Link>
                         <Button variant="outline" size="sm">
                           <MoreHorizontal className="w-4 h-4" />
+                          Options
                         </Button>
                       </div>
                     </div>
@@ -258,8 +265,13 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="recent">
+            {loading && <p className="text-center text-gray-500">Loading interviews...</p>}
+            {error && <p className="text-center text-red-500">Error: {error}</p>}
+            {!loading && !error && recentInterviews.length === 0 && (
+              <p className="text-center text-gray-500">No recent interviews.</p>
+            )}
             <div className="grid gap-4">
-              {recentInterviews.map((interview) => (
+              {!loading && !error && recentInterviews.map((interview) => (
                 <Card key={interview.id} className="hover:shadow-md transition-shadow">
                   <CardContent className="p-6">
                     <div className="flex justify-between items-start">
@@ -271,33 +283,36 @@ const Dashboard = () => {
                           <Badge className={getStatusColor(interview.status)}>
                             {interview.status}
                           </Badge>
-                          <Badge variant="outline">
-                            {interview.language}
-                          </Badge>
+                          {interview.language && (
+                            <Badge variant="outline">
+                              {interview.language}
+                            </Badge>
+                          )}
                         </div>
-                        <p className="text-gray-600 mb-3">{interview.candidate}</p>
+                        <p className="text-gray-600 mb-3">{interview.candidateId}</p> {/* Display candidateId for now */}
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
-                            {interview.date}
+                            {interview.startTime ? new Date(interview.startTime).toLocaleDateString() : 'N/A'}
                           </div>
-                          <div className="flex items-center">
-                            <Brain className="w-4 h-4 mr-1" />
-                            AI Score: <span className={`ml-1 font-semibold ${getScoreColor(interview.score)}`}>
-                              {interview.score}%
-                            </span>
-                          </div>
+                          {interview.score && (
+                            <div className="flex items-center">
+                              <Brain className="w-4 h-4 mr-1" />
+                              <span className={getScoreColor(interview.score)}>{interview.score}%</span> AI Score
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
                         <Link to={`/interview/${interview.id}/report`}>
-                          <Button variant="outline" size="sm">
+                          <Button size="sm">
                             <Eye className="w-4 h-4 mr-2" />
                             View Report
                           </Button>
                         </Link>
                         <Button variant="outline" size="sm">
                           <MoreHorizontal className="w-4 h-4" />
+                          Options
                         </Button>
                       </div>
                     </div>
@@ -308,47 +323,8 @@ const Dashboard = () => {
           </TabsContent>
 
           <TabsContent value="analytics">
-            <div className="grid md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Interview Performance</CardTitle>
-                  <CardDescription>
-                    Average scores over the last 30 days
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                    <p className="text-gray-500">Chart visualization would go here</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Top Skills</CardTitle>
-                  <CardDescription>
-                    Most frequently tested technologies
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {["JavaScript", "Python", "React", "Node.js", "Java"].map((skill, index) => (
-                      <div key={skill} className="flex items-center justify-between">
-                        <span className="font-medium">{skill}</span>
-                        <div className="flex items-center space-x-2">
-                          <div className="w-24 bg-gray-200 rounded-full h-2">
-                            <div 
-                              className="bg-gradient-to-r from-blue-600 to-purple-600 h-2 rounded-full" 
-                              style={{ width: `${(5-index) * 20}%` }}
-                            ></div>
-                          </div>
-                          <span className="text-sm text-gray-600">{(5-index) * 20}%</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+            <div className="text-center text-gray-500 py-10">
+              Analytics content goes here.
             </div>
           </TabsContent>
         </Tabs>
