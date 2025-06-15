@@ -17,7 +17,6 @@ interface CodeExecutionResult {
   aiInsights?: {
     suggestions: string[];
     potentialBugs: string[];
-    alternativeSolutions: string[];
   };
 }
 

@@ -19,6 +19,7 @@ const AppRoutes = () => {
       <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
       <Route path="/interview/create" element={user ? <CreateInterview /> : <Navigate to="/login" />} />
       <Route path="/interview/:id" element={user ? <InterviewRoom /> : <Navigate to="/login" />} />
+      <Route path="/interview/:id/edit" element={user ? <CreateInterview /> : <Navigate to="/login" />} />
       <Route path="/join-interview" element={<JoinInterview />} />
       <Route 
         path="/interview/:id/feedback" 

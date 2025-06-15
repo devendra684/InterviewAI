@@ -5,7 +5,7 @@ import { Code, Settings, LogOut, FileText } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar = () => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const [currentTime, setCurrentTime] = useState(new Date());
 
   useEffect(() => {
@@ -22,20 +22,25 @@ const Navbar = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Code className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                InterviewAI
-              </span>
+              <Link to="/dashboard" className="flex items-center space-x-2 group">
+                <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
+                  <Code className="w-5 h-5 text-white" />
+                </div>
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent group-hover:underline">
+                  InterviewAI
+                </span>
+              </Link>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="sm" asChild>
-                <Link to="/questions">
-                  <FileText className="w-4 h-4 mr-2" />
-                  Questions
-                </Link>
-              </Button>
+              {/* Show Questions button only for recruiters */}
+              {user?.role === 'RECRUITER' && (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link to="/questions">
+                    <FileText className="w-4 h-4 mr-2" />
+                    Questions
+                  </Link>
+                </Button>
+              )}
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4 mr-2" />
                 Settings

@@ -36,6 +36,9 @@ interface Interview { // Define an interface for Interview
   candidateId?: string;
   score?: number; // Add score for recent interviews
   language?: string; // Add language for recent interviews
+  candidate?: {
+    name?: string;
+  };
 }
 
 const Dashboard = () => {
@@ -124,7 +127,7 @@ const Dashboard = () => {
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Welcome back, {user ? user.name || user.email : 'User'}!
+            Welcome, {user ? user.name || user.email : 'User'}!
           </h1>
           <p className="text-gray-600">
             {userRole === "recruiter" 
@@ -195,7 +198,6 @@ const Dashboard = () => {
             <TabsList>
               <TabsTrigger value="upcoming">Upcoming</TabsTrigger>
               <TabsTrigger value="recent">Recent</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
             </TabsList>
             
             {userRole === "recruiter" && (
@@ -233,7 +235,9 @@ const Dashboard = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-gray-600 mb-3">{interview.candidateId}</p> {/* Display candidateId for now */}
+                        <p className="text-gray-600 mb-3">{
+                          interview.candidate?.name || interview.candidateId || 'N/A'
+                        }</p> {/* Display candidate name if available, else candidateId */}
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
@@ -289,7 +293,9 @@ const Dashboard = () => {
                             </Badge>
                           )}
                         </div>
-                        <p className="text-gray-600 mb-3">{interview.candidateId}</p> {/* Display candidateId for now */}
+                        <p className="text-gray-600 mb-3">{
+                          interview.candidate?.name || interview.candidateId || 'N/A'
+                        }</p> {/* Display candidate name if available, else candidateId */}
                         <div className="flex items-center space-x-4 text-sm text-gray-500">
                           <div className="flex items-center">
                             <Calendar className="w-4 h-4 mr-1" />
@@ -319,12 +325,6 @@ const Dashboard = () => {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-          </TabsContent>
-
-          <TabsContent value="analytics">
-            <div className="text-center text-gray-500 py-10">
-              Analytics content goes here.
             </div>
           </TabsContent>
         </Tabs>

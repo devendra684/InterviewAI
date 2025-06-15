@@ -21,6 +21,7 @@ import {
   BarChart
 } from "lucide-react";
 import { format } from "date-fns";
+import Navbar from '@/components/Navbar';
 
 interface PerformanceData {
   technicalSkill: number;
@@ -162,8 +163,9 @@ const CandidateFeedback = () => {
   const isCandidate = user?.role === 'CANDIDATE';
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 space-y-6">
+    <div className="min-h-screen bg-gray-50">
+      {user && <Navbar />}
+      <div className="max-w-4xl mx-auto px-4 space-y-6 pt-24">
         {/* Header */}
         <div className="flex items-center justify-between">
           <Button
@@ -369,32 +371,6 @@ const CandidateFeedback = () => {
                     <div className="space-y-3">
                       <h3 className="text-lg font-semibold text-gray-900">Next Steps</h3>
                       <p className="text-gray-600">{feedback.nextSteps}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                {/* Actions */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <Brain className="w-5 h-5 text-blue-600" />
-                      <span>Actions</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex flex-wrap gap-2">
-                      <Button variant="outline" size="sm">
-                        <Brain className="w-4 h-4 mr-2" />
-                        Schedule Follow-up
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Target className="w-4 h-4 mr-2" />
-                        Add to Candidate Profile
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <TrendingUp className="w-4 h-4 mr-2" />
-                        Share Feedback
-                      </Button>
                     </div>
                   </CardContent>
                 </Card>
