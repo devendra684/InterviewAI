@@ -120,21 +120,6 @@ const Login = () => {
               </Button>
             </form>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Demo Credentials</span>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 rounded-lg p-4">
-              <p className="text-sm text-gray-600 mb-2">Try the demo:</p>
-              <p className="text-sm font-mono text-gray-800">Email: demo@example.com</p>
-              <p className="text-sm font-mono text-gray-800">Password: demo123</p>
-            </div>
-
             <div className="text-center">
               <span className="text-gray-600">Don't have an account? </span>
               <Link to="/register" className="text-blue-600 hover:text-blue-800 font-medium transition-colors">

@@ -2,15 +2,18 @@ import { TestCase } from '../types/interview';
 import { AIService } from './aiService.js';
 import { PrismaClient } from '@prisma/client';
 
+// Define a new type for test results
+export interface TestResult {
+  testCase: number;
+  passed: boolean;
+  executionTime: string;
+  output: string;
+  error?: string;
+}
+
 interface CodeExecutionResult {
   message: string;
-  testResults: {
-    testCase: number;
-    passed: boolean;
-    executionTime: string;
-    output?: string;
-    error?: string;
-  }[];
+  testResults: TestResult[];
   aiInsights?: {
     suggestions: string[];
     potentialBugs: string[];
@@ -44,7 +47,7 @@ export class CodeExecutionService {
       // This is where you'd integrate with a code execution engine
       // For now, we'll simulate the execution
 
-      const testResults = await this.runTestCases(code, language, testCases);
+      const testResults: TestResult[] = await this.runTestCases(code, language, testCases);
       const allPassed = testResults.every(result => result.passed);
       
       // Save code snapshot with problem context
@@ -95,7 +98,7 @@ export class CodeExecutionService {
     code: string,
     language: string,
     testCases: TestCase[]
-  ) {
+  ): Promise<TestResult[]> {
     // TODO: Implement actual test case execution
     // This would involve:
     // 1. Compiling/parsing the code

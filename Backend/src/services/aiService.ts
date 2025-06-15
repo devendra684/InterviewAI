@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { TestCase } from '../types/interview';
+import { TestResult } from './codeExecutionService';
 
 export class AIService {
   private openai: OpenAI;
@@ -12,7 +12,7 @@ export class AIService {
   async analyzeCode(
     code: string,
     language: string,
-    testResults: TestCase[],
+    testResults: TestResult[],
     problemDetails: {
       problemTitle: string;
       problemDescription: string;
@@ -44,7 +44,7 @@ ${code}
 Test Results:
 ${testResultsSummary}
 
-Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each:\n{\n  \"suggestions\": [\n    \"string\"\n  ],\n  \"potentialBugs\": [\n    \"string\"\n  ]\n}\nIf no relevant data, use empty arrays.`;
+Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each:\n{\n  "suggestions": [\n    "string"\n  ],\n  "potentialBugs": [\n    "string"\n  ]\n}\nIf no relevant data, use empty arrays.`;
 
     try {
       const response = await this.openai.chat.completions.create({
@@ -87,7 +87,7 @@ Provide your analysis as a JSON object with the following structure. For array f
   async provideFeedback(
     code: string,
     language: string,
-    testResults: TestCase[],
+    testResults: TestResult[],
     expectedOutput: string,
     actualOutput: string
   ): Promise<any> {

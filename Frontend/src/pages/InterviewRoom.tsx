@@ -492,14 +492,14 @@ const Interview = () => {
     const getMedia = async () => {
       try {
         console.log('Attempting to get media stream...');
-        const stream = await navigator.mediaDevices.getUserMedia({
+      const stream = await navigator.mediaDevices.getUserMedia({
           video: isVideoEnabled,
           audio: isAudioEnabled,
-        });
+      });
         console.log('Media stream obtained:', stream);
 
-        if (localStreamRef.current) {
-          localStreamRef.current.srcObject = stream;
+      if (localStreamRef.current) {
+        localStreamRef.current.srcObject = stream;
           console.log('Video stream assigned to localStreamRef.current.srcObject');
           console.log('localStreamRef.current after assignment:', localStreamRef.current);
         } else {
@@ -651,7 +651,7 @@ const Interview = () => {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
-  
+
   const problems = interview?.questions || [];
   const currentProblemData = problems[currentProblem];
 
