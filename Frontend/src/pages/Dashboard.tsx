@@ -104,6 +104,23 @@ const Dashboard = () => {
       new Date(interview.startTime || new Date()).getTime() < Date.now()
   ).sort((a, b) => new Date(b.startTime || '').getTime() - new Date(a.startTime || '').getTime());
 
+  // Calculate stats
+  const now = new Date();
+  const weekStart = new Date(now);
+  weekStart.setDate(now.getDate() - now.getDay());
+
+  const thisWeekInterviews = interviews.filter(i => {
+    const start = new Date(i.startTime || '');
+    return start >= weekStart && start <= now;
+  });
+  const activeNow = interviews.filter(i => i.status === "IN_PROGRESS").length;
+  const completed = interviews.filter(i => i.status === "COMPLETED");
+  const avgScore = completed.length
+    ? Math.round(completed.reduce((sum, i) => sum + (i.score || 0), 0) / completed.length)
+    : 0;
+  const passed = completed.filter(i => (i.score || 0) >= 60).length; // Example: pass if score >= 60
+  const successRate = completed.length ? Math.round((passed / completed.length) * 100) : 0;
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case "SCHEDULED": return "bg-blue-100 text-blue-800";
@@ -137,18 +154,22 @@ const Dashboard = () => {
           </p>
         </div>
 
-        {/* Stats Cards - These are still mock, will integrate later if needed */}
+        {/* Stats Cards - Now dynamic by user role */}
         <div className="grid md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-600">
-                This Week
+                {userRole === "recruiter" ? "This Week" : "Completed"}
               </CardTitle>
               <Calendar className="w-4 h-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-gray-900">8</div>
-              <p className="text-xs text-gray-600">Interviews scheduled</p>
+              <div className="text-2xl font-bold text-gray-900">
+                {userRole === "recruiter" ? thisWeekInterviews.length : completed.length}
+              </div>
+              <p className="text-xs text-gray-600">
+                {userRole === "recruiter" ? "Interviews scheduled" : "Interviews completed"}
+              </p>
             </CardContent>
           </Card>
 
@@ -160,7 +181,7 @@ const Dashboard = () => {
               <Video className="w-4 h-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">2</div>
+              <div className="text-2xl font-bold text-green-600">{activeNow}</div>
               <p className="text-xs text-gray-600">Live interviews</p>
             </CardContent>
           </Card>
@@ -173,7 +194,7 @@ const Dashboard = () => {
               <Brain className="w-4 h-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">87</div>
+              <div className="text-2xl font-bold text-blue-600">{avgScore}</div>
               <p className="text-xs text-gray-600">AI assessment</p>
             </CardContent>
           </Card>
@@ -186,8 +207,10 @@ const Dashboard = () => {
               <Users className="w-4 h-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-purple-600">73%</div>
-              <p className="text-xs text-gray-600">Candidates passed</p>
+              <div className="text-2xl font-bold text-purple-600">{successRate}%</div>
+              <p className="text-xs text-gray-600">
+                {userRole === "recruiter" ? "Candidates passed" : "Your pass rate"}
+              </p>
             </CardContent>
           </Card>
         </div>

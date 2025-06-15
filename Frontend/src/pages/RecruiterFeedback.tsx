@@ -31,27 +31,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 
-interface PerformanceData {
-  technicalSkill: number;
-  codeQuality: {
-    score: number;
-    efficiency: string;
-    readability: string;
-    bestPractices: string;
-  };
-  communication: {
-    score: number;
-    clarity: string;
-    technicalVocabulary: string;
-    interaction: string;
-    metrics: {
-      clarity: number;
-      technicalAccuracy: number;
-      responseTime: number;
-      engagement: number;
-    };
-  };
-  problemSolving: number;
+interface CodeQuality {
+  efficiency: string;
+  readability: string;
+  bestPractices: string;
+  correctness: string;
 }
 
 interface CodeFeedbackSummary {
@@ -59,8 +43,14 @@ interface CodeFeedbackSummary {
   efficiency: string;
   readability: string;
   bestPractices: string;
-  correctness?: string;
+  correctness: string;
   testResults?: any[];
+}
+
+interface Performance {
+  problemSolving: number;
+  technicalSkill: number;
+  codeQuality: CodeFeedbackSummary;
 }
 
 interface FeedbackData {
@@ -69,7 +59,7 @@ interface FeedbackData {
   completedAt: string;
   duration: number;
   overallScore: number;
-  performance: PerformanceData;
+  performance: Performance;
   codeFeedbackSummary: CodeFeedbackSummary;
   feedback: string;
   strengths: string[];
@@ -207,6 +197,12 @@ const RecruiterFeedback = () => {
     return `${minutes}m ${remainingSeconds}s`;
   };
 
+  // Calculate overall score as the average of code quality, problem solving, and technical skills
+  const codeQualityScore = feedback.codeFeedbackSummary?.score ?? 0;
+  const problemSolvingScore = feedback.performance?.problemSolving ?? 0;
+  const technicalSkillScore = feedback.performance?.technicalSkill ?? 0;
+  const overallScore = Math.round((codeQualityScore + problemSolvingScore + technicalSkillScore) / 3);
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header Section */}
@@ -243,7 +239,7 @@ const RecruiterFeedback = () => {
             </p>
           </div>
           <div className="text-right">
-            <p className="text-5xl font-bold text-green-600">{feedback.overallScore}%</p>
+            <p className="text-5xl font-bold text-green-600">{overallScore}%</p>
             <p className="text-lg font-medium text-gray-600">Overall Score</p>
           </div>
         </div>
@@ -256,23 +252,29 @@ const RecruiterFeedback = () => {
               <h2 className="text-xl font-bold text-gray-800">Overall Performance</h2>
             </div>
             <div className="grid grid-cols-4 gap-6 text-center">
+              {/* Overall Score */}
+              <div>
+                <p className="text-2xl font-bold text-green-600">{overallScore}%</p>
+                <p className="text-gray-600">Overall Score</p>
+                <Progress value={overallScore} className="mt-2 h-2" />
+              </div>
               {/* Code Quality */}
               <div>
-                <p className="text-2xl font-bold text-green-600">{feedback.performance.codeQuality.score}%</p>
+                <p className="text-2xl font-bold text-green-600">{codeQualityScore}%</p>
                 <p className="text-gray-600">Code Quality</p>
-                <Progress value={feedback.performance.codeQuality.score} className="mt-2 h-2" />
+                <Progress value={codeQualityScore} className="mt-2 h-2" />
               </div>
               {/* Problem Solving */}
               <div>
-                <p className="text-2xl font-bold text-green-600">{feedback.performance.problemSolving}%</p>
+                <p className="text-2xl font-bold text-green-600">{problemSolvingScore}%</p>
                 <p className="text-gray-600">Problem Solving</p>
-                <Progress value={feedback.performance.problemSolving} className="mt-2 h-2" />
+                <Progress value={problemSolvingScore} className="mt-2 h-2" />
               </div>
               {/* Technical Skills */}
               <div>
-                <p className="text-2xl font-bold text-green-600">{feedback.performance.technicalSkill}%</p>
+                <p className="text-2xl font-bold text-green-600">{technicalSkillScore}%</p>
                 <p className="text-gray-600">Technical Skills</p>
-                <Progress value={feedback.performance.technicalSkill} className="mt-2 h-2" />
+                <Progress value={technicalSkillScore} className="mt-2 h-2" />
               </div>
             </div>
           </CardContent>
@@ -289,8 +291,8 @@ const RecruiterFeedback = () => {
 
           {/* Code Analysis Tab Content */}
           <TabsContent value="code-analysis">
-            <div className="grid grid-cols-2 gap-6 mt-6">
-              {/* Code Quality Metrics */}
+            <div className="mt-6">
+              {/* Code Quality Details (full width, with icons) */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center space-x-2">
@@ -298,110 +300,47 @@ const RecruiterFeedback = () => {
                     <span>Code Quality Metrics</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Efficiency</span>
-                    <Badge variant="secondary">{feedback.codeFeedbackSummary?.efficiency || 'N/A'}</Badge>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Readability</span>
-                    <Badge variant="secondary">{feedback.codeFeedbackSummary?.readability || 'N/A'}</Badge>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Best Practices</span>
-                    <Badge variant="secondary">{feedback.codeFeedbackSummary?.bestPractices || 'N/A'}</Badge>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between items-center">
-                    <span className="text-gray-700">Technical Accuracy</span>
-                    <Badge variant="secondary">{feedback.performance.technicalSkill > 80 ? 'Very Good' : feedback.performance.technicalSkill > 60 ? 'Good' : 'Average'}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Improvement Suggestions */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <TrendingUp className="w-5 h-5 text-green-600" />
-                    <span>Improvement Suggestions</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <ul className="list-none space-y-2 text-gray-700">
-                    {feedback.areasForImprovement.length > 0 ? (
-                      feedback.areasForImprovement.map((area, index) => (
-                        <li key={index} className="flex items-start">
-                          <Target className="w-4 h-4 mr-2 mt-1 text-orange-500 flex-shrink-0" />
-                          {area}
-                        </li>
-                      ))
-                    ) : (
-                      <li>No specific improvement areas identified.</li>
-                    )}
-                    {feedback.nextSteps && feedback.nextSteps !== 'Not applicable' && (
-                        <li className="flex items-start">
-                            <Target className="w-4 h-4 mr-2 mt-1 text-orange-500 flex-shrink-0" />
-                            {feedback.nextSteps}
-                        </li>
-                    )}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              {/* Code Feedback Summary - Show to both roles */}
-              {feedback.codeFeedbackSummary && (
-                <div className="space-y-3">
-                  <h3 className="text-lg font-semibold text-gray-900">Code Quality Details</h3>
-                  
-                  {(() => {
-                    const testResults = feedback.codeFeedbackSummary.testResults;
-                    let passedTests = 0;
-                    let totalTests = 0;
-                    let codeQualityColorClass = "text-gray-600"; // Default color
-
-                    if (testResults && Array.isArray(testResults)) {
-                      totalTests = testResults.length;
-                      passedTests = testResults.filter(test => test.passed === true).length;
-
-                      if (totalTests > 0) {
-                        if (passedTests === totalTests) {
-                          codeQualityColorClass = "text-green-600"; // All passed
-                        } else if (passedTests > 0) {
-                          codeQualityColorClass = "text-orange-600"; // Some passed
-                        } else {
-                          codeQualityColorClass = "text-red-600"; // All failed
-                        }
-                      }
-                    }
-
-                    return (
-                      <div className={codeQualityColorClass}>
-                        <ul className="list-disc list-inside space-y-1">
-                          <li><strong>Efficiency:</strong> {feedback.codeFeedbackSummary.efficiency}</li>
-                          <li><strong>Readability:</strong> {feedback.codeFeedbackSummary.readability}</li>
-                          <li><strong>Best Practices:</strong> {feedback.codeFeedbackSummary.bestPractices}</li>
-                          {feedback.codeFeedbackSummary.correctness && (
-                            <li><strong>Correctness:</strong> {feedback.codeFeedbackSummary.correctness}</li>
-                          )}
-                          {testResults && testResults.length > 0 && (
-                            <li>
-                              <strong>Test Cases:</strong> {passedTests}/{totalTests} passed
-                              {testResults.map((test, index) => (
-                                <div key={index} className="ml-4 text-sm">
-                                  Test {test.testCase}: {test.passed ? '✓' : '✗'} ({test.executionTime})
-                                </div>
-                              ))}
-                            </li>
-                          )}
-                        </ul>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-8">
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <TrendingUp className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">Efficiency</h3>
                       </div>
-                    );
-                  })()}
-                </div>
-              )}
+                      <p className="text-gray-600 ml-13">{feedback.codeFeedbackSummary?.efficiency || 'Not evaluated'}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">Readability</h3>
+                      </div>
+                      <p className="text-gray-600 ml-13">{feedback.codeFeedbackSummary?.readability || 'Not evaluated'}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                          <CheckCircle className="w-5 h-5 text-purple-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">Best Practices</h3>
+                      </div>
+                      <p className="text-gray-600 ml-13">{feedback.codeFeedbackSummary?.bestPractices || 'Not evaluated'}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
+                          <Target className="w-5 h-5 text-green-600" />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800">Correctness</h3>
+                      </div>
+                      <p className="text-gray-600 ml-13">{feedback.codeFeedbackSummary?.correctness || 'Not evaluated'}</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           </TabsContent>
 
@@ -417,14 +356,15 @@ const RecruiterFeedback = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="flex flex-wrap gap-2">
-                    {feedback.strengths.map((strength, index) => (
-                      <Badge key={index} variant="secondary" className="flex items-center">
-                        <Star className="w-3 h-3 mr-1" />
-                        {strength}
-                      </Badge>
-                    ))}
-                  </div>
+                  <ul className="list-disc list-inside space-y-1">
+                    {feedback.strengths && feedback.strengths.length > 0 ? (
+                      feedback.strengths.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))
+                    ) : (
+                      <li>No strengths identified.</li>
+                    )}
+                  </ul>
                 </CardContent>
               </Card>
 
@@ -437,10 +377,14 @@ const RecruiterFeedback = () => {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc list-inside space-y-2 text-gray-600">
-                    {feedback.areasForImprovement.map((area, index) => (
-                      <li key={index}>{area}</li>
-                    ))}
+                  <ul className="list-disc list-inside space-y-1">
+                    {feedback.areasForImprovement && feedback.areasForImprovement.length > 0 ? (
+                      feedback.areasForImprovement.map((item, idx) => (
+                        <li key={idx}>{item}</li>
+                      ))
+                    ) : (
+                      <li>No areas for improvement identified.</li>
+                    )}
                   </ul>
                 </CardContent>
               </Card>
@@ -453,29 +397,8 @@ const RecruiterFeedback = () => {
                     <span>Detailed Performance Analysis</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                    <div>
-                        <h4 className="font-semibold text-gray-800">Problem-Solving Approach</h4>
-                        <p className="text-gray-600">{feedback.performance.problemSolving > 70 ? 'Systematic and methodical. Breaks down problems into smaller components and thinks through edge cases.' : 'Needs more structured approach to problem-solving.'}</p>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-gray-800">Code Structure</h4>
-                        <p className="text-gray-600">{feedback.performance.codeQuality.readability === 'Excellent' ? 'Well-organized with clear separation of concerns. Uses appropriate data structures.' : 'Could improve code organization and structure.'}</p>
-                    </div>
-                    <div>
-                        <h4 className="font-semibold text-gray-800">Time Management</h4>
-                        <p className="text-gray-600">{feedback.duration < 1200 ? 'Completed tasks within allocated time with room for optimization.' : 'Struggled with time management, could not complete all tasks within the given time.'}</p>
-                    </div>
-                    <Separator />
-                    <h4 className="font-semibold text-gray-800">Overall Detailed Feedback</h4>
-                    <p className="text-gray-600">{feedback.feedback}</p>
-                    {feedback.transcriptDetailedFeedback && feedback.transcriptDetailedFeedback !== '0' && (
-                        <>
-                            <Separator />
-                            <h4 className="font-semibold text-gray-800">Transcript Specific Feedback</h4>
-                            <p className="text-gray-600 whitespace-pre-line">{feedback.transcriptDetailedFeedback}</p>
-                        </>
-                    )}
+                <CardContent>
+                  <p className="text-gray-600 whitespace-pre-line">{feedback.feedback}</p>
                 </CardContent>
               </Card>
 

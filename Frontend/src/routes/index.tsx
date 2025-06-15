@@ -8,6 +8,7 @@ import InterviewRoom from "@/pages/InterviewRoom";
 import JoinInterview from "@/pages/JoinInterview";
 import CandidateFeedback from "@/pages/CandidateFeedback";
 import RecruiterFeedback from "@/pages/RecruiterFeedback";
+import Questions from '@/pages/Questions';
 
 const AppRoutes = () => {
   const { user } = useAuth();
@@ -35,6 +36,7 @@ const AppRoutes = () => {
           )
         } 
       />
+      <Route path="/questions" element={<Questions />} />
       <Route path="/" element={<Navigate to="/dashboard" />} />
     </Routes>
   );

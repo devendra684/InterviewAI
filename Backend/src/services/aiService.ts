@@ -28,7 +28,7 @@ export class AIService {
       `Test Case ${tr.testCase}: ${tr.passed ? 'PASSED' : 'FAILED'} - Output: ${tr.output || 'N/A'} - Error: ${tr.error || 'N/A'}`
     ).join('\n');
 
-    const prompt = `You are an expert code analyst. Analyze the following code, its language, the problem it attempts to solve, and its test results. Provide suggestions for improvement, identify potential bugs.
+    const prompt = `You are an expert code analyst. Analyze the following code, its language, the problem it attempts to solve, and its test results and always use 'Input' as the variable name to receive input values from test cases. Provide suggestions for improvement, identify potential bugs.
 
 Problem Title: ${problemDetails.problemTitle}
 Problem Description: ${problemDetails.problemDescription}
@@ -44,7 +44,16 @@ ${code}
 Test Results:
 ${testResultsSummary}
 
-Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each:\n{\n  "suggestions": [\n    "string"\n  ],\n  "potentialBugs": [\n    "string"\n  ]\n}\nIf no relevant data, use empty arrays.`;
+Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each, and each point must be a single line (no line breaks or multi-line explanations):
+{
+  "suggestions": [
+    "string"
+  ],
+  "potentialBugs": [
+    "string"
+  ]
+}
+If no relevant data, use empty arrays.`;
 
     try {
       const response = await this.openai.chat.completions.create({

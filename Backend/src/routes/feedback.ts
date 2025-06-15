@@ -145,7 +145,7 @@ router.post("/:id/feedback", authenticateJWT, async (req: express.Request, res: 
     console.log("AI Prompt - Code content:", snapshot.code);
     console.log("AI Prompt - Test Results:", snapshot.testResults);
 
-    const prompt = `You are an expert technical interviewer. Analyze the following interview transcript and code. Consider the provided test results for code quality assessment.
+    const prompt = `You are an expert technical interviewer. Analyze the following interview transcript and code. Consider the provided test results for code quality assessment and 'Input' as the variable name to receive input values from test cases.
 
 Transcript:
 ${transcriptData.content}
@@ -157,62 +157,36 @@ Test Results:
 ${snapshot.testResults ? JSON.stringify(snapshot.testResults, null, 2) : "No test results provided."}
 
 Evaluate the candidate on:
-1. Technical skill
-2. Code quality (evaluate efficiency, readability, best practices, AND correctness based on test results)
-3. Communication (analyze clarity, articulation, and interaction)
-4. Problem solving
-
-For each category, provide:
-- A score (0-100) as a NUMBER
-- 2 specific strengths
-- 2 specific areas for improvement
+1. Overall performance
+2. Problem solving ability
+3. Technical skill
+4. Code quality (evaluate efficiency, readability, best practices, AND correctness)
 
 For code quality specifically, evaluate:
-- Code efficiency (time/space complexity)
+- Efficiency (time/space complexity)
 - Readability (naming, structure, comments)
 - Best practices (error handling, modularity)
 - Correctness (based on test results: total tests, passed tests, failed tests, and any error messages).
 
-For communication, analyze:
-- Clarity of explanations
-- Technical vocabulary usage
-- Interaction quality
-- Response to feedback
+For each section, also provide:
+- 2 specific strengths (as an array of short strings)
+- 2 specific areas for improvement (as an array of short strings)
 
-Additional Communication Metrics:
-${transcriptData.communicationMetrics ? `- Clarity Score: ${transcriptData.communicationMetrics.clarity}
-- Technical Accuracy: ${transcriptData.communicationMetrics.technicalAccuracy}
-- Response Time: ${transcriptData.communicationMetrics.responseTime}
-- Engagement Level: ${transcriptData.communicationMetrics.engagement}` : ''}
-
-IMPORTANT: Your response MUST be a valid JSON object with numeric scores (not strings). For code quality, ensure your 'score' and sub-evaluations accurately reflect the test results. Use the following structure:
+IMPORTANT: Your response MUST be a valid JSON object with numeric scores (not strings). For code quality, include a numeric 'score' field (0-100) and the subfields. Use the following structure:
 {
   "overallScore": 75,
-  "technicalSkill": 80,
+  "problemSolving": 80,
+  "technicalSkill": 85,
   "codeQuality": {
     "score": 70,
-    "efficiency": "Good time complexity but could optimize space usage",
-    "readability": "Well-structured code with clear variable names",
-    "bestPractices": "Missing error handling in some areas",
-    "correctness": "Passed 2 out of 3 test cases. Failing test case details: ..."
+    "efficiency": "...",
+    "readability": "...",
+    "bestPractices": "...",
+    "correctness": "..."
   },
-  "communication": {
-    "score": 85,
-    "clarity": "Explained concepts clearly with good examples",
-    "technicalVocabulary": "Used appropriate technical terms correctly",
-    "interaction": "Responded well to questions and feedback",
-    "metrics": {
-      "clarity": 80,
-      "technicalAccuracy": 90,
-      "responseTime": 75,
-      "engagement": 85
-    }
-  },
-  "problemSolving": 78,
-  "strengths": ["Strong algorithmic thinking", "Good debugging skills"],
-  "areasForImprovement": ["Could improve edge case handling", "Need better time complexity analysis"],
-  "detailedFeedback": "The candidate demonstrated solid technical skills with room for improvement in optimization techniques.",
-  "nextSteps": "Focus on advanced algorithms and system design concepts"
+  "strengths": ["...", "..."],
+  "areasForImprovement": ["...", "..."],
+  "detailedFeedback": "..."
 }
 
 If you cannot evaluate due to insufficient information, use score 0 and explain in detailedFeedback.`;
@@ -244,48 +218,76 @@ If you cannot evaluate due to insufficient information, use score 0 and explain 
       console.error("Failed to parse AI response:", parseError);
       feedbackData = {
         overallScore: 0,
+        problemSolving: 0,
         technicalSkill: 0,
         codeQuality: {
-          score: 0,
           efficiency: "Unable to evaluate due to insufficient data",
           readability: "Unable to evaluate due to insufficient data",
           bestPractices: "Unable to evaluate due to insufficient data",
           correctness: "Unable to evaluate due to insufficient data"
         },
-        communication: {
-          score: 0,
-          clarity: "Unable to evaluate due to insufficient data",
-          technicalVocabulary: "Unable to evaluate due to insufficient data",
-          interaction: "Unable to evaluate due to insufficient data",
-          metrics: {
-            clarity: 0,
-            technicalAccuracy: 0,
-            responseTime: 0,
-            engagement: 0
-          }
-        },
-        problemSolving: 0,
-        strengths: [],
-        areasForImprovement: [],
-        detailedFeedback: "Unable to generate feedback due to AI response parsing error. Please try again with more comprehensive interview data.",
-        nextSteps: "Ensure interview transcript and code are properly captured for accurate feedback generation."
+        detailedFeedback: "Unable to generate feedback due to AI response parsing error. Please try again with more comprehensive interview data."
       };
     }
 
     console.log("Creating feedback record in database");
     const feedback = await prisma.feedback.create({
       data: {
-        overallScore: feedbackData.overallScore,
-        strengths: feedbackData.strengths,
-        areasForImprovement: feedbackData.areasForImprovement,
-        nextSteps: feedbackData.nextSteps,
+        overallScore: feedbackData.overallScore || 0,
+        strengths: feedbackData.strengths ?? [],
+        areasForImprovement: feedbackData.areasForImprovement ?? [],
+        nextSteps: "No next steps provided",
         interviewId,
         userId,
-        codeFeedbackSummary: JSON.stringify(feedbackData.codeQuality),
-        communicationFeedbackSummary: JSON.stringify(feedbackData.communication),
-        feedback: feedbackData.detailedFeedback,
-        performance: feedbackData,
-        transcriptDetailedFeedback: feedbackData.problemSolving.toString(),
+        codeFeedbackSummary: JSON.stringify({
+          score: feedbackData.codeQuality?.score ?? 0,
+          efficiency: feedbackData.codeQuality?.efficiency || "Not evaluated",
+          readability: feedbackData.codeQuality?.readability || "Not evaluated",
+          bestPractices: feedbackData.codeQuality?.bestPractices || "Not evaluated",
+          correctness: feedbackData.codeQuality?.correctness || "Not evaluated"
+        }),
+        communicationFeedbackSummary: JSON.stringify({
+          score: 0,
+          clarity: "Not evaluated",
+          technicalVocabulary: "Not evaluated",
+          interaction: "Not evaluated",
+          metrics: {
+            clarity: 0,
+            technicalAccuracy: 0,
+            responseTime: 0,
+            engagement: 0
+          }
+        }),
+        feedback: feedbackData.detailedFeedback || "No detailed feedback available",
+        performance: {
+          overallScore: feedbackData.overallScore || 0,
+          technicalSkill: feedbackData.technicalSkill || 0,
+          codeQuality: {
+            score: feedbackData.codeQuality?.score ?? 0,
+            efficiency: feedbackData.codeQuality?.efficiency || "Not evaluated",
+            readability: feedbackData.codeQuality?.readability || "Not evaluated",
+            bestPractices: feedbackData.codeQuality?.bestPractices || "Not evaluated",
+            correctness: feedbackData.codeQuality?.correctness || "Not evaluated"
+          },
+          communication: {
+            score: 0,
+            clarity: "Not evaluated",
+            technicalVocabulary: "Not evaluated",
+            interaction: "Not evaluated",
+            metrics: {
+              clarity: 0,
+              technicalAccuracy: 0,
+              responseTime: 0,
+              engagement: 0
+            }
+          },
+          problemSolving: feedbackData.problemSolving || 0,
+          strengths: feedbackData.strengths ?? [],
+          areasForImprovement: feedbackData.areasForImprovement ?? [],
+          detailedFeedback: feedbackData.detailedFeedback || "No detailed feedback available",
+          nextSteps: "No next steps provided"
+        },
+        transcriptDetailedFeedback: feedbackData.problemSolving?.toString() || "0"
       }
     });
 

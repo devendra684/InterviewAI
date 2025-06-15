@@ -46,9 +46,9 @@ interface User {
 }
 
 interface TestCase {
+  id?: string;
   input: string;
   expectedOutput: string;
-  hidden: boolean;
 }
 
 interface Question {
@@ -89,7 +89,7 @@ const Interview = () => {
   const [timeLimit, setTimeLimit] = useState(3600); // 60 minutes
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [testResults, setTestResults] = useState<any[]>([]);
-  const [code, setCode] = useState("// Write your solution here\n\nfunction solve(input) {\n    // Your code here\n    return result;\n}");
+  const [code, setCode] = useState("// Always use the variable \`Input\` to receive input values from test cases.\\n// Example: Input = [1, 2, 3] or Input = ['abc', 'xyz']\\n\\nfunction solve(Input) {\\n  // Your code here\\n  return result;\\n}");
   const [notes, setNotes] = useState("No notes were provided by the candidate.");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("javascript");
   const [aiInsightsResult, setAiInsightsResult] = useState<{
@@ -716,7 +716,7 @@ const Interview = () => {
         
         if (data.questions && data.questions.length > 0) {
           setCurrentProblem(0);
-          setCode(data.questions[0].initialCode || "// Write your solution here\n\nfunction solve(input) {\n    // Your code here\n    return result;\n}");
+          setCode(data.questions[0].initialCode || "// Always use the variable \`Input\` to receive input values from test cases.\\n// Example: Input = [1, 2, 3] or Input = ['abc', 'xyz']\\n\\nfunction solve(Input) {\\n  // Your code here\\n  return result;\\n}");
         }
       } catch (err) {
         console.error('Error fetching interview:', err);
@@ -774,7 +774,7 @@ const Interview = () => {
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-600">
                 <li>Screen sharing access (mandatory and cannot be disabled)</li>
-                <li>Screen recording (automatic and cannot be stopped)</li>
+                {/* <li>Screen recording (automatic and cannot be stopped)</li> */}
                 <li>Camera access for video recording</li>
                 <li>Microphone access for audio recording</li>
               </ul>
