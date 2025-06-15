@@ -47,3 +47,6 @@ next-env.d.ts
 .cache/
 .npm/
 .eslintcache
+
+# Screenshots uploads
+Backend/screenshots/

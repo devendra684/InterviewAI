@@ -62,9 +62,13 @@ interface Question {
 interface Interview {
   id: string;
   title: string;
+  company: string;
   description: string;
-  duration: number;
   startTime: string;
+  duration: number;
+  status: "SCHEDULED" | "IN_PROGRESS" | "COMPLETED";
+  interviewerId: string;
+  candidateId: string;
   questions: Question[];
 }
 
@@ -106,11 +110,13 @@ const Interview = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showPermissionsModal, setShowPermissionsModal] = useState(true);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [showFullscreenModal, setShowFullscreenModal] = useState(false);
 
   // Ref declarations
   const localStreamRef = useRef<HTMLVideoElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const recordedChunks = useRef<Blob[]>([]);
+  const screenVideoRef = useRef<HTMLVideoElement>(null);
   const violationTimerRef = useRef<NodeJS.Timeout | null>(null);
   const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const screenshotInterval = useRef<NodeJS.Timeout | null>(null);
@@ -122,6 +128,8 @@ const Interview = () => {
   const userRole = user?.role?.toLowerCase() === "candidate" ? "candidate" :
                    user?.role?.toLowerCase() === "recruiter" || user?.role?.toLowerCase() === "admin" ? "recruiter" :
                    searchParams.get("role") || "recruiter";
+
+  let screenshotIntervalId: NodeJS.Timeout | null = null;
 
   // Callback functions
   const handleSubmitInterview = useCallback(async () => {
@@ -358,54 +366,224 @@ const Interview = () => {
 
   const handleGrantPermissions = async () => {
     try {
-      // First request fullscreen
-      const element = document.documentElement;
-      if (element.requestFullscreen) {
-        await element.requestFullscreen();
-      } else if ((element as any).webkitRequestFullscreen) {
-        await (element as any).webkitRequestFullscreen();
-      } else if ((element as any).msRequestFullscreen) {
-        await (element as any).msRequestFullscreen();
-      }
+      // First request camera and microphone permissions
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: true,
+        audio: true,
+      });
 
-      // Hide our modal first
+      // Stop the stream immediately as we just needed the permissions
+      stream.getTracks().forEach(track => track.stop());
+
+      setPermissionsGranted(true);
+      setIsVideoEnabled(true);
+      setIsAudioEnabled(true);
+
+      // Hide our modal after permissions are granted
       setShowPermissionsModal(false);
 
-      // Then request media permissions after a short delay
-      setTimeout(async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-          });
-
-          // Stop the stream immediately as we just needed the permissions
-          stream.getTracks().forEach(track => track.stop());
-
-          setPermissionsGranted(true);
-          setIsVideoEnabled(true);
-          setIsAudioEnabled(true);
-        } catch (err) {
-          console.error('Error granting media permissions:', err);
-          toast({
-            title: "Permission Error",
-            description: "Please allow camera and microphone access to continue with the interview.",
-            variant: "destructive",
-          });
-          // Show the modal again if permissions were denied
-          setShowPermissionsModal(true);
-        }
-      }, 500); // 500ms delay to ensure our modal is hidden first
+      // Start screen sharing immediately after permissions are granted
+      await startScreenSharing();
 
     } catch (err) {
-      console.error('Error entering fullscreen:', err);
+      console.error('Error granting media permissions:', err);
       toast({
-        title: "Fullscreen Error",
-        description: "Please allow fullscreen access to continue with the interview.",
+        title: "Permission Error",
+        description: "Please allow camera and microphone access to continue with the interview.",
         variant: "destructive",
       });
+      // Show the modal again if permissions were denied
+      setShowPermissionsModal(true);
     }
   };
+
+  const handleScreenShareEnd = () => {
+    // Clear the screen stream
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+      setScreenStream(null);
+    }
+
+    setIsScreenSharing(false);
+
+    // Show warning and re-request permissions
+    toast({
+      title: "Screen Sharing Stopped",
+      description: "Screen sharing is required. Please allow screen sharing to continue.",
+      variant: "destructive",
+    });
+
+    // Show permissions modal again
+    setShowPermissionsModal(true);
+  };
+
+  const checkScreenSharing = async () => {
+    if (!screenStream && permissionsGranted) {
+      try {
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: false
+        });
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+
+        if (screenVideoRef.current) {
+          screenVideoRef.current.srcObject = stream;
+        }
+
+        // Handle when user stops sharing
+        stream.getVideoTracks()[0].onended = () => {
+          stopScreenSharing();
+          // Show warning toast when screen sharing is stopped
+          toast({
+            title: "Screen Sharing Required",
+            description: "Screen sharing is mandatory for this interview. Please enable it again.",
+            variant: "destructive",
+          });
+        };
+      } catch (err) {
+        console.error('Error starting screen share:', err);
+        toast({
+          title: "Screen Sharing Required",
+          description: "Screen sharing is mandatory for this interview. Please enable it.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const startScreenSharing = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: false
+      });
+
+      // Validate that the user shared the entire screen
+      const videoTrack = stream.getVideoTracks()[0];
+      // @ts-ignore: displaySurface is not in the standard spec but is supported in Chrome/Edge/Opera/Brave
+      const displaySurface = videoTrack.getSettings().displaySurface || videoTrack.label.toLowerCase();
+      if (displaySurface !== 'monitor' && !videoTrack.label.toLowerCase().includes('screen')) {
+        stream.getTracks().forEach(track => track.stop());
+        toast({
+          title: "Screen Sharing Error",
+          description: "You must share your entire screen (not a window or tab). Please try again and select 'Entire Screen'.",
+          variant: "destructive",
+        });
+        setShowPermissionsModal(true);
+        return;
+      }
+
+      // Store the stream
+      setScreenStream(stream);
+
+      // Add event listener for when user stops sharing
+      videoTrack.addEventListener('ended', () => {
+        handleScreenShareEnd();
+      });
+
+      setIsScreenSharing(true);
+
+    } catch (err) {
+      console.error('Error starting screen share:', err);
+      toast({
+        title: "Screen Sharing Error",
+        description: "Please allow screen sharing to continue with the interview.",
+        variant: "destructive",
+      });
+      // Show permissions modal again if screen sharing was denied
+      setShowPermissionsModal(true);
+    }
+  };
+
+  const stopScreenSharing = () => {
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => track.stop());
+      setScreenStream(null);
+      setIsScreenSharing(false);
+      if (screenVideoRef.current) {
+        screenVideoRef.current.srcObject = null;
+      }
+    }
+  };
+
+  const takeAndUploadScreenshot = async () => {
+    console.log('Attempting to take screenshot...');
+    try {
+      // Try to capture the screen video element if available
+      if (screenVideoRef.current) {
+        console.log('Screen video ref found, capturing from video element...');
+        const canvas = await html2canvas(screenVideoRef.current, { useCORS: true });
+        console.log('Canvas created from video element');
+        canvas.toBlob(blob => {
+          if (blob) {
+            console.log('Blob created, size:', blob.size, 'bytes');
+            uploadScreenshot(blob);
+          } else {
+            console.error('Failed to create blob from canvas');
+          }
+        }, 'image/png');
+      } else {
+        console.log('No screen video ref, capturing entire document body...');
+        const canvas = await html2canvas(document.body, { useCORS: true });
+        console.log('Canvas created from document body');
+        canvas.toBlob(blob => {
+          if (blob) {
+            console.log('Blob created, size:', blob.size, 'bytes');
+            uploadScreenshot(blob);
+          } else {
+            console.error('Failed to create blob from canvas');
+          }
+        }, 'image/png');
+      }
+    } catch (err) {
+      console.error('Error taking screenshot:', err);
+    }
+  };
+
+  const uploadScreenshot = async (blob: Blob) => {
+    if (!id || !token) {
+      console.error('Missing id or token for screenshot upload');
+      return;
+    }
+    console.log('Uploading screenshot...');
+    const formData = new FormData();
+    formData.append('screenshot', blob, `screenshot-${Date.now()}.png`);
+    try {
+      const response = await fetch(`/api/interviews/${id}/screenshots`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      if (response.ok) {
+        console.log('Screenshot uploaded successfully');
+      } else {
+        console.error('Failed to upload screenshot:', await response.text());
+      }
+    } catch (err) {
+      console.error('Failed to upload screenshot:', err);
+    }
+  };
+
+  // Start screenshot interval when screen sharing starts
+  useEffect(() => {
+    if (isScreenSharing) {
+      screenshotIntervalId = setInterval(takeAndUploadScreenshot, 15000); // 15 seconds
+    } else {
+      if (screenshotIntervalId) {
+        clearInterval(screenshotIntervalId);
+        screenshotIntervalId = null;
+      }
+    }
+    return () => {
+      if (screenshotIntervalId) {
+        clearInterval(screenshotIntervalId);
+        screenshotIntervalId = null;
+      }
+    };
+  }, [isScreenSharing]);
 
   // Render loading state early
   if (loading) {
@@ -417,77 +595,6 @@ const Interview = () => {
   }
 
   // useEffect hooks
-  useEffect(() => {
-    const handleFullscreenChange = () => {
-      const isInFullscreen = !!(
-        document.fullscreenElement ||
-        (document as any).webkitFullscreenElement ||
-        (document as any).msFullscreenElement
-      );
-      setIsFullscreen(isInFullscreen);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        const newViolationCount = violationCount + 1;
-        setViolationCount(newViolationCount);
-        
-        // Show toast notification
-        toast({
-          title: "Warning: Window Switch Detected",
-          description: `Switching windows or tabs is not allowed. This is violation ${newViolationCount} of 3. Your submission will be automatically submitted after 3 violations.`,
-          variant: "destructive",
-        });
-
-        if (newViolationCount >= 3) {
-          // Auto-submit immediately after 3rd violation
-          toast({
-            title: "Interview Ended",
-            description: "Your interview has been automatically submitted due to multiple window switches.",
-            variant: "destructive",
-          });
-          handleSubmitInterview();
-        }
-      }
-    };
-
-    // Add event listeners
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
-    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
-    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      // Clean up event listeners
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
-      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [violationCount, handleSubmitInterview, toast]);
-
-  const enterFullscreen = async () => {
-    try {
-      const element = document.documentElement;
-      if (element.requestFullscreen) {
-        await element.requestFullscreen();
-      } else if ((element as any).webkitRequestFullscreen) { // Safari
-        await (element as any).webkitRequestFullscreen();
-      } else if ((element as any).msRequestFullscreen) { // IE11
-        await (element as any).msRequestFullscreen();
-      }
-    } catch (err) {
-      console.error('Error entering fullscreen:', err);
-      toast({
-        title: "Fullscreen Error",
-        description: "Please click the fullscreen button to enter fullscreen mode.",
-        variant: "destructive",
-      });
-    }
-  };
-
   useEffect(() => {
     const getMedia = async () => {
       try {
@@ -666,13 +773,19 @@ const Interview = () => {
                 To ensure a secure and effective interview experience, we need the following permissions:
               </p>
               <ul className="list-disc list-inside space-y-2 text-gray-600">
+                <li>Screen sharing access (mandatory and cannot be disabled)</li>
+                <li>Screen recording (automatic and cannot be stopped)</li>
                 <li>Camera access for video recording</li>
                 <li>Microphone access for audio recording</li>
-                <li>Fullscreen mode to prevent distractions</li>
               </ul>
-              <p className="text-gray-600">
-                Please click "Allow" to grant these permissions and start your interview.
-              </p>
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <p className="text-red-600 font-medium">Important:</p>
+                <ul className="list-disc list-inside text-red-600 mt-2">
+                  <li>Screen sharing and recording are mandatory and cannot be disabled</li>
+                  <li>Attempting to stop screen sharing will result in a violation</li>
+                  <li>Multiple violations may lead to automatic interview termination</li>
+                </ul>
+              </div>
               <div className="flex justify-end space-x-4 mt-6">
                 <Button
                   variant="outline"
@@ -684,13 +797,51 @@ const Interview = () => {
                   onClick={handleGrantPermissions}
                   className="bg-blue-600 hover:bg-blue-700"
                 >
-                  Allow
+                  Start Interview
                 </Button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Comment out fullscreen modal
+      {showFullscreenModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl relative z-[9999]">
+            <h2 className="text-2xl font-bold mb-4">Enter Fullscreen Mode</h2>
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                Please click the button below to enter fullscreen mode. After entering fullscreen, you will be prompted to share your screen.
+              </p>
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <p className="text-yellow-600 font-medium">Note:</p>
+                <ul className="list-disc list-inside text-yellow-600 mt-2">
+                  <li>Fullscreen mode is mandatory for the interview</li>
+                  <li>You must maintain fullscreen mode throughout the interview</li>
+                  <li>Exiting fullscreen will stop screen sharing and recording</li>
+                  <li>Multiple violations may lead to automatic interview termination</li>
+                </ul>
+              </div>
+              <div className="flex justify-end space-x-4 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleFullscreenButtonClick}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Enter Fullscreen
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      */}
 
       {/* Header */}
       <div className="bg-white border-b shadow-sm px-6 py-4">
@@ -710,17 +861,6 @@ const Interview = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
-            {!isFullscreen && !showPermissionsModal && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={enterFullscreen}
-                className="flex items-center space-x-2"
-              >
-                <Monitor className="h-4 w-4" />
-                <span>Enter Fullscreen</span>
-              </Button>
-            )}
             {/* Timer */}
             <div className="flex items-center space-x-1 text-gray-700">
               <Clock className="w-4 h-4" />

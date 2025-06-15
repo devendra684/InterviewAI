@@ -1,60 +1,58 @@
-import { WebSocketServer, WebSocket as WsWebSocket } from 'ws';
-import { Server } from 'http';
-import { parse } from 'url';
-import * as fs from 'fs';
-import * as path from 'path';
+import express, { Request, Response } from "express";
+import { WebSocket, WebSocketServer } from 'ws';
+import { v4 as uuidv4 } from 'uuid';
+import path from 'path';
+import fs from 'fs';
+
+interface Client {
+  id: string;
+  userId: string;
+  interviewId: string;
+  ws: WebSocket;
+}
 
 interface WebSocketMessage {
   type: string;
   payload: any;
 }
 
-interface Client {
-  id: string;
-  ws: WsWebSocket;
-  interviewId: string;
-  userId: string;
-  role: string;
-}
+const clients: Map<string, Client> = new Map();
 
-const clients = new Map<string, Client>();
-
-export function setupWebSocket(server: Server) {
+export function setupWebSocket(server: any) {
   const wss = new WebSocketServer({ server });
 
-  wss.on('connection', (ws, req) => {
-    const { query } = parse(req.url || '', true);
-    const { interviewId, userId, role } = query;
+  wss.on('connection', (ws: WebSocket, req: Request) => {
+    const clientId = uuidv4();
+    const userId = req.headers['user-id'] as string;
+    const interviewId = req.headers['interview-id'] as string;
 
-    if (!interviewId || !userId || !role) {
-      ws.close(1008, 'Missing required parameters');
+    if (!userId || !interviewId) {
+      ws.close();
       return;
     }
 
     const client: Client = {
-      id: userId as string,
-      ws,
-      interviewId: interviewId as string,
-      userId: userId as string,
-      role: role as string
+      id: clientId,
+      userId,
+      interviewId,
+      ws
     };
 
-    clients.set(client.id, client);
-    console.log(`Client connected: ${client.id} (${client.role})`);
+    clients.set(clientId, client);
+    console.log(`Client connected: ${clientId} (User: ${userId}, Interview: ${interviewId})`);
 
-    ws.on('message', (data) => {
-      const text = typeof data === 'string' ? data : data.toString();
-       try {
-        const message: WebSocketMessage = JSON.parse(text);
+    ws.on('message', (data: string) => {
+      try {
+        const message = JSON.parse(data) as WebSocketMessage;
         handleMessage(client, message);
-      } catch (error) {
-        console.error('Error handling message:', error);
+      } catch (err) {
+        console.error('Error handling message:', err);
       }
     });
 
     ws.on('close', () => {
-      clients.delete(client.id);
-      console.log(`Client disconnected: ${client.id}`);
+      clients.delete(clientId);
+      console.log(`Client disconnected: ${clientId}`);
     });
   });
 }
@@ -85,33 +83,15 @@ async function handleMessage(client: Client, message: WebSocketMessage) {
       }, client.id);
       break;
 
-    case "screenshot":
-      const { interviewId, userId, timestamp, data } = payload;
-      const filename = `${interviewId}-${userId}-${timestamp}.png`;
-      const filepath = path.join(__dirname, '..', '..', 'screenshots', filename);
-  await fs.promises.mkdir(path.dirname(filepath), { recursive: true });
-
-      // Convert Array<number> back to Buffer
-      const buffer = Buffer.from(data);
-
-      fs.writeFile(filepath, buffer, (err) => {
-        if (err) {
-          console.error("Error saving screenshot:", err);
-        } else {
-          console.log(`Screenshot saved: ${filepath}`);
-        }
-      });
-      break;
-
     default:
       console.log("Unknown message type:", type);
   }
 }
 
 function broadcastToInterview(interviewId: string, message: WebSocketMessage, excludeClientId?: string) {
-  clients.forEach((client) => {
-    if (client.interviewId === interviewId && client.id !== excludeClientId) {
+  for (const [clientId, client] of clients.entries()) {
+    if (client.interviewId === interviewId && clientId !== excludeClientId) {
       client.ws.send(JSON.stringify(message));
     }
-  });
+  }
 } 

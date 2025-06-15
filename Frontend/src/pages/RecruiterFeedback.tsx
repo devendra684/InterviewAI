@@ -89,6 +89,8 @@ const RecruiterFeedback = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [retryCount, setRetryCount] = useState(0);
+  const [screenshots, setScreenshots] = useState<{ filename: string; url: string }[]>([]);
+  const [screenshotsLoading, setScreenshotsLoading] = useState(true);
 
   useEffect(() => {
     const fetchFeedback = async () => {
@@ -127,6 +129,30 @@ const RecruiterFeedback = () => {
 
     fetchFeedback();
   }, [id, retryCount]);
+
+  useEffect(() => {
+    const fetchScreenshots = async () => {
+      if (!id) return;
+      setScreenshotsLoading(true);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`/api/interviews/${id}/screenshots`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setScreenshots(data);
+        } else {
+          setScreenshots([]);
+        }
+      } catch (err) {
+        setScreenshots([]);
+      } finally {
+        setScreenshotsLoading(false);
+      }
+    };
+    fetchScreenshots();
+  }, [id]);
 
   if (loading) {
     return (
@@ -254,11 +280,11 @@ const RecruiterFeedback = () => {
 
         {/* Tabbed Content */}
         <Tabs defaultValue="code-analysis" className="w-full">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="code-analysis">Code Analysis</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="plagiarism-check">Plagiarism Check</TabsTrigger>
-            <TabsTrigger value="professional-feedback">Professional Feedback</TabsTrigger>
+            <TabsTrigger value="screenshots">Screenshots</TabsTrigger>
           </TabsList>
 
           {/* Code Analysis Tab Content */}
@@ -502,26 +528,42 @@ const RecruiterFeedback = () => {
             </div>
           </TabsContent>
 
-          {/* Professional Feedback Tab Content */}
-          <TabsContent value="professional-feedback">
-            <div className="grid grid-cols-1 gap-6 mt-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Brain className="w-5 h-5 text-purple-600" />
-                    <span>Professional Feedback</span>
-                    <Button variant="ghost" size="sm" className="ml-auto" onClick={() => navigator.clipboard.writeText(feedback.feedback)}>
-                        <Copy className="w-4 h-4 mr-2" />
-                        Copy
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-gray-700">
-                    {feedback.feedback}
-                  </p>
-                </CardContent>
-              </Card>
+          {/* Screenshots Tab Content */}
+          <TabsContent value="screenshots">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
+              {screenshotsLoading ? (
+                <div className="col-span-full text-center text-gray-500">Loading screenshots...</div>
+              ) : screenshots.length === 0 ? (
+                <div className="col-span-full text-center text-gray-500">No screenshots available for this interview.</div>
+              ) : (
+                screenshots.map((shot, idx) => {
+                  const token = localStorage.getItem("token");
+                  return (
+                    <div key={shot.filename} className="bg-white rounded shadow p-2 flex flex-col items-center">
+                      <img 
+                        src={shot.url} 
+                        alt={`Screenshot ${idx + 1}`} 
+                        className="w-full h-auto rounded mb-2"
+                        onError={(e) => {
+                          // If the direct URL fails, try fetching with Authorization header
+                          fetch(shot.url, {
+                            headers: {
+                              'Authorization': `Bearer ${token}`
+                            }
+                          })
+                          .then(response => response.blob())
+                          .then(blob => {
+                            const objectUrl = URL.createObjectURL(blob);
+                            (e.target as HTMLImageElement).src = objectUrl;
+                          })
+                          .catch(error => console.error('Error loading screenshot:', error));
+                        }}
+                      />
+                      <span className="text-xs text-gray-500">{shot.filename.replace('screenshot-', '').replace('.png', '').replace(/-/g, ':')}</span>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </TabsContent>
         </Tabs>

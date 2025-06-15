@@ -19,6 +19,7 @@ import RecruiterFeedback from '@/pages/RecruiterFeedback';
 import NotFound from '@/pages/NotFound';
 import CreateInterview from '@/pages/CreateInterview';
 import Questions from './pages/Questions';
+import AppRoutes from './routes';
 
 const queryClient = new QueryClient();
 
@@ -31,19 +32,7 @@ function App() {
           <TooltipProvider>
             <Toaster />
             <Sonner />
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/interview/create" element={<CreateInterview />} />
-              <Route path="/interview/:id" element={<InterviewRoom />} />
-              <Route path="/interview/:id/feedback" element={<CandidateFeedback />} />
-              <Route path="/join" element={<JoinInterview />} />
-              <Route path="/questions" element={<Questions />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
-            </Routes>
+            <AppRoutes />
           </TooltipProvider>
         </AuthProvider>
       </BrowserRouter>
