@@ -17,13 +17,16 @@ A modern platform for conducting technical interviews with AI-powered feedback a
   - Test case execution
 
 - 🤖 **AI-Powered Analysis**
-  - Code quality assessment
-  - Performance evaluation
-  - Communication analysis
-  - Detailed feedback generation
+  - Comprehensive code quality assessment
+  - Technical skills evaluation
+  - Problem-solving capability analysis
+  - Structured feedback with strengths and areas for improvement
+  - Overall performance scoring system
+  - Detailed code feedback summary
+  - Real-time feedback generation
 
 - 🔒 **Role-Based Access**
-  - Recruiter dashboard
+  - Recruiter dashboard with enhanced feedback view
   - Candidate interface
   - Admin controls
   - Secure authentication
@@ -31,8 +34,9 @@ A modern platform for conducting technical interviews with AI-powered feedback a
 - 📊 **Interview Management**
   - Interview scheduling
   - Question bank
-  - Performance tracking
-  - Feedback history
+  - Performance tracking with detailed metrics
+  - Comprehensive feedback history
+  - Automated feedback organization
 
 ## 🛠️ Tech Stack
 
@@ -62,9 +66,14 @@ A modern platform for conducting technical interviews with AI-powered feedback a
 ├── Frontend/                # React frontend application
 │   ├── src/
 │   │   ├── components/     # Reusable UI components
+│   │   │   ├── feedback/   # Feedback-related components
+│   │   │   ├── interview/  # Interview components
+│   │   │   └── common/     # Shared UI components
 │   │   ├── contexts/       # React contexts
 │   │   ├── hooks/         # Custom React hooks
 │   │   ├── pages/         # Page components
+│   │   │   ├── dashboard/ # Dashboard views
+│   │   │   └── feedback/  # Feedback views
 │   │   ├── services/      # API services
 │   │   └── types/         # TypeScript types
 │   ├── public/            # Static assets
@@ -75,6 +84,8 @@ A modern platform for conducting technical interviews with AI-powered feedback a
 │   │   ├── routes/       # API routes
 │   │   ├── middleware/   # Express middleware
 │   │   ├── services/     # Business logic
+│   │   │   ├── ai/      # AI analysis services
+│   │   │   └── feedback/ # Feedback processing
 │   │   └── utils/        # Utility functions
 │   ├── prisma/           # Database schema and migrations
 │   └── package.json      # Backend dependencies
