@@ -56,6 +56,7 @@ model CodeSnapshot {
   code        String
   transcript  String
   timestamp   DateTime  @default(now())
+  testResults Json?     @default("{}")
   interviewId String
   interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
 

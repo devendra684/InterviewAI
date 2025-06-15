@@ -9,7 +9,7 @@ interface TestCase {
 
 interface TestCasesProps {
   testCases: TestCase[];
-  // results?: any[];   // remove until actually needed
+  results?: any[]; // Added to resolve linter error
 }
 
 const TestCases: React.FC<TestCasesProps> = ({ testCases, results = [] }) => {

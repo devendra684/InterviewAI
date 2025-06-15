@@ -304,7 +304,7 @@ const Dashboard = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Link to={`/interview/${interview.id}/report`}>
+                        <Link to={`/interview/${interview.id}/feedback`}>
                           <Button size="sm">
                             <Eye className="w-4 h-4 mr-2" />
                             View Report

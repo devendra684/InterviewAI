@@ -1,5 +1,5 @@
 import express from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Prisma } from "@prisma/client";
 import { authenticateJWT } from "../middleware/auth.js";
 import { nanoid } from "nanoid";
 import OpenAI from "openai";
@@ -261,22 +261,37 @@ router.post("/:id/start", authenticateJWT, requireRecruiterOrAdmin, async (req: 
 });
 
 // End interview
-router.post("/:id/end", authenticateJWT, requireRecruiterOrAdmin, async (req: express.Request, res: express.Response): Promise<void> => {
+router.post("/:id/end", authenticateJWT, async (req: express.Request, res: express.Response): Promise<void> => {
   const { id } = req.params;
   const userId = req.user?.id;
-  if (!userId) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  if (!userId) {
+    res.status(401).json({ message: "Unauthorized: User not found" });
+    return;
+  }
 
   try {
-    const interview = await prisma.interview.update({
+    const interview = await prisma.interview.findUnique({ where: { id } });
+    if (!interview) {
+      res.status(404).json({ message: "Interview not found" });
+      return;
+    }
+
+    // Check if user is the interviewer or candidate
+    if (interview.interviewerId !== userId && interview.candidateId !== userId) {
+      res.status(403).json({ message: "Only the interviewer or candidate can end the interview" });
+      return;
+    }
+
+    const updatedInterview = await prisma.interview.update({
       where: { id },
       data: { status: "COMPLETED", endTime: new Date() }
     });
-    res.json(interview);
-    return;
-  } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-    res.status(500).json({ message: "Failed to end interview", error: errorMessage });
-    return;
+
+    res.json(updatedInterview);
+  } catch (error) {
+    console.error("Error ending interview:", error);
+    res.status(500).json({ message: "Failed to end interview" });
   }
 });
 
@@ -330,7 +345,7 @@ router.post("/:id/violations", authenticateJWT, async (req: express.Request, res
   }
 });
 
-// Get interview feedback by ID (added to interviews router)
+// Get interview feedback by ID
 router.get("/:id/feedback", authenticateJWT, async (req: express.Request, res: express.Response): Promise<void> => {
   const { id } = req.params;
   const userId = req.user?.id;
@@ -341,29 +356,118 @@ router.get("/:id/feedback", authenticateJWT, async (req: express.Request, res: e
   }
 
   try {
-    const feedback = await prisma.feedback.findUnique({
-      where: { interviewId: id },
-      include: { user: { select: { id: true, name: true, email: true } } },
+    const interview = await prisma.interview.findUnique({
+      where: { id },
+      include: {
+        feedback: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!feedback) {
+    if (!interview) {
+      res.status(404).json({ message: "Interview not found" });
+      return;
+    }
+
+    // Check if user is authorized to view this feedback
+    if (interview.interviewerId !== userId && interview.candidateId !== userId) {
+      res.status(403).json({ message: "Not authorized to view this feedback" });
+      return;
+    }
+
+    // If no feedback exists yet, return 404
+    if (!interview.feedback) {
       res.status(404).json({ message: "Feedback not found" });
       return;
     }
 
-    // Ensure only authorized users can view feedback
-    const interview = await prisma.interview.findUnique({ where: { id } });
-    if (!interview || (interview.interviewerId !== userId && interview.candidateId !== userId)) {
-      res.status(403).json({ message: "Access denied: You are not authorized to view this feedback." });
+    // Format the response to match frontend expectations
+    const formattedFeedback = {
+      ...interview.feedback,
+      interviewTitle: interview.title,
+      company: interview.company,
+      completedAt: interview.updatedAt, // Use updatedAt as the completion date
+      duration: interview.duration,
+      // Parse JSON strings if they exist
+      codeFeedbackSummary: interview.feedback.codeFeedbackSummary ? 
+        (typeof interview.feedback.codeFeedbackSummary === 'string' ? 
+          JSON.parse(interview.feedback.codeFeedbackSummary) : 
+          interview.feedback.codeFeedbackSummary) : 
+        null,
+      communicationFeedbackSummary: interview.feedback.communicationFeedbackSummary ? 
+        (typeof interview.feedback.communicationFeedbackSummary === 'string' ? 
+          JSON.parse(interview.feedback.communicationFeedbackSummary) : 
+          interview.feedback.communicationFeedbackSummary) : 
+        null,
+    };
+
+    res.json(formattedFeedback);
+  } catch (error) {
+    console.error("Error fetching feedback:", error);
+    res.status(500).json({ message: "Error fetching feedback" });
+  }
+});
+
+// Save code snapshot
+router.post("/:id/code/save", authenticateJWT, async (req: express.Request, res: express.Response): Promise<void> => {
+  const { id: interviewId } = req.params;
+  const { filename, language, code, transcript, communicationData, testResults } = req.body;
+  const userId = req.user?.id;
+
+  console.log(`Received snapshot save request for interview ${interviewId} by user ${userId}`);
+  console.log(`Snapshot details: Filename=${filename}, Language=${language}, Code Length=${code?.length || 0}, Transcript Length=${transcript?.length || 0}`);
+  console.log("Communication Data:", communicationData);
+  console.log("Test Results Data:", testResults);
+
+  if (!userId) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  try {
+    // Check interview access
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) { res.status(404).json({ message: "Interview not found" }); return; }
+    if (interview.interviewerId !== userId && interview.candidateId !== userId) {
+      res.status(403).json({ message: "Access denied" });
       return;
     }
 
-    res.json(feedback);
+    // Enhanced transcript with communication data
+    const enhancedTranscript = {
+      timestamp: new Date().toISOString(),
+      speaker: userId === interview.interviewerId ? 'interviewer' : 'candidate',
+      content: transcript,
+      communicationMetrics: {
+        clarity: communicationData?.clarity || null,
+        technicalAccuracy: communicationData?.technicalAccuracy || null,
+        responseTime: communicationData?.responseTime || null,
+        engagement: communicationData?.engagement || null
+      }
+    };
+
+    const snapshot = await prisma.codeSnapshot.create({
+      data: { 
+        interviewId, 
+        filename, 
+        language, 
+        code, 
+        transcript: JSON.stringify(enhancedTranscript),
+        testResults: testResults ? JSON.stringify(testResults) : Prisma.JsonNull
+      }
+    });
+    res.status(201).json(snapshot);
     return;
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
-    console.error('Error fetching interview feedback:', err);
-    res.status(500).json({ message: "Failed to fetch feedback", error: errorMessage });
+    console.error("Error saving snapshot:", err);
+    res.status(500).json({ message: "Failed to save snapshot", error: errorMessage });
     return;
   }
 });

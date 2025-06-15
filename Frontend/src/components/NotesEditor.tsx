@@ -83,43 +83,6 @@ useEffect(() => {
           </div>
         </div>
       </div>
-
-      {/* Quick Actions */}
-      {/* <div className="mt-3 space-y-2">
-        <Separator />
-        <div className="text-xs font-medium text-gray-600 mb-2">Quick Actions</div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="outline" size="sm" className="text-xs h-8">
-            Add Timestamp
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs h-8">
-            Add Rating
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs h-8">
-            Mark Question
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs h-8">
-            Add Action Item
-          </Button>
-        </div>
-      </div> */}
-
-      {/* Collaboration Indicator */}
-      {/* {isShared && (
-        <Card className="mt-3">
-          <CardContent className="p-3">
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
-                <User className="w-3 h-3 text-white" />
-              </div>
-              <div className="text-xs">
-                <p className="font-medium">Alex Smith is also viewing</p>
-                <p className="text-gray-500">Last active: 2 minutes ago</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )} */}
     </div>
   );
 };

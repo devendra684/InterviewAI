@@ -36,7 +36,10 @@ const CandidateNotes = ({ notes, onNotesChange }: CandidateNotesProps) => {
         placeholder="Take notes here..."
         className="flex-1 font-mono text-sm resize-none focus-visible:ring-0 focus-visible:ring-offset-0"
         value={localNotes}
-        onChange={(e) => setLocalNotes(e.target.value)}
+        onChange={(e) => {
+          setLocalNotes(e.target.value);
+          onNotesChange(e.target.value);
+        }}
       />
       <div className="mt-4 text-sm text-gray-600">
         <p className="flex items-center space-x-1">

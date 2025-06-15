@@ -22,7 +22,8 @@ import {
   ArrowLeft,
   Settings,
   LogOut,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Loader2
 } from "lucide-react";
 import CodeEditor from "@/components/CodeEditor";
 import TestCases from "@/components/TestCases";
@@ -72,10 +73,12 @@ const Interview = () => {
   const { id } = useParams();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { user, authLoading, token } = useAuth();
+  const { user, loading, token } = useAuth();
 
+  // State declarations
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [interview, setInterview] = useState<Interview | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingInterview, setLoadingInterview] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentProblem, setCurrentProblem] = useState(0);
   const [timeElapsed, setTimeElapsed] = useState(0);
@@ -83,46 +86,181 @@ const Interview = () => {
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [testResults, setTestResults] = useState<any[]>([]);
   const [code, setCode] = useState("// Write your solution here\n\nfunction solve(input) {\n    // Your code here\n    return result;\n}");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState("No notes were provided by the candidate.");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("javascript");
   const [aiInsightsResult, setAiInsightsResult] = useState<{
     suggestions: string[];
     potentialBugs: string[];
     statusMessage?: string;
+    alternativeSolutions?: string[];
   } | null>(null);
   const [isAiInsightsOpen, setIsAiInsightsOpen] = useState(true);
+  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'paused'>('idle');
+  const [isVideoEnabled, setIsVideoEnabled] = useState(true);
+  const [isAudioEnabled, setIsAudioEnabled] = useState(true);
+  const [showViolationWarning, setShowViolationWarning] = useState(false);
+  const [violationCount, setViolationCount] = useState(0);
+  const [socketConnected, setSocketConnected] = useState(false);
+  const [messageHistory, setMessageHistory] = useState<string[]>([]);
+  const [videoPanelPosition, setVideoPanelPosition] = useState({ x: window.innerWidth - 350, y: 20 });
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showPermissionsModal, setShowPermissionsModal] = useState(true);
+  const [permissionsGranted, setPermissionsGranted] = useState(false);
 
-  // WebRTC/MediaRecorder states
+  // Ref declarations
   const localStreamRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunks = useRef<Blob[]>([]);
-  const [recordingStatus, setRecordingStatus] = useState<'idle' | 'recording' | 'paused'>('idle');
-  const [isVideoEnabled, setIsVideoEnabled] = useState(true); // Track video state
-  const [isAudioEnabled, setIsAudioEnabled] = useState(true); // Track audio state
-
-  // Proctoring states
-  const [showViolationWarning, setShowViolationWarning] = useState(false);
-  const [violationCount, setViolationCount] = useState(0);
-
-  // Screenshot capture
-  const [screenshotInterval, setScreenshotInterval] = useState<NodeJS.Timeout | null>(null);
+  const violationTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const submitTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const screenshotInterval = useRef<NodeJS.Timeout | null>(null);
   const mainContentRef = useRef<HTMLDivElement>(null);
-
-  // WebSocket setup
   const ws = useRef<WebSocket | null>(null);
-  const [socketConnected, setSocketConnected] = useState(false);
-  const [messageHistory, setMessageHistory] = useState<string[]>([]);
-
-  // Movable video panel state
   const videoPanelRef = useRef<HTMLDivElement>(null);
-  const [videoPanelPosition, setVideoPanelPosition] = useState({ x: window.innerWidth - 350, y: 20 }); // Initial position
 
-  // Determine user role: prioritize authenticated user's role, then URL, then default to recruiter
+  // Derived state/constants
   const userRole = user?.role?.toLowerCase() === "candidate" ? "candidate" :
                    user?.role?.toLowerCase() === "recruiter" || user?.role?.toLowerCase() === "admin" ? "recruiter" :
                    searchParams.get("role") || "recruiter";
 
-  // Helper function to determine badge variant for difficulty
+  // Callback functions
+  const handleSubmitInterview = useCallback(async () => {
+    if (!id || !token || !user) {
+      toast({
+        title: "Error",
+        description: "Cannot submit interview. Please try again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      console.log("Submitting interview with notes:", notes);
+      console.log("Current code:", code);
+      console.log("Test results:", testResults);
+
+      // Format test results for the backend
+      const formattedTestResults = testResults ? {
+        results: testResults.map(result => ({
+          testCase: result.testCase,
+          passed: result.passed,
+          executionTime: result.executionTime,
+          output: result.output
+        }))
+      } : { results: [] };
+
+      // First, save the final code snapshot
+      const saveResponse = await fetch(`/api/interviews/${id}/code/save`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          filename: 'solution.js',
+          language: selectedLanguage,
+          code: code || "// No code was written",
+          transcript: notes || "No notes were provided",
+          communicationData: {
+            clarity: 80,
+            technicalAccuracy: 85,
+            responseTime: 75,
+            engagement: 80
+          },
+          testResults: formattedTestResults
+        })
+      });
+
+      if (!saveResponse.ok) {
+        const errorData = await saveResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to save final code snapshot: ${saveResponse.status}`);
+      }
+
+      // Then, end the interview
+      const endResponse = await fetch(`/api/interviews/${id}/end`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (!endResponse.ok) {
+        const errorData = await endResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to end interview: ${endResponse.status}`);
+      }
+
+      // Finally, trigger feedback generation
+      const feedbackResponse = await fetch(`/api/feedback/${id}/feedback`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!feedbackResponse.ok) {
+        const errorData = await feedbackResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error generating feedback: ${feedbackResponse.status}`);
+      }
+
+      const feedbackData = await feedbackResponse.json();
+      
+      toast({
+        title: "Success!",
+        description: "Your interview has been submitted and feedback is being generated.",
+        variant: "default",
+      });
+
+      // Navigate to dashboard after successful submission
+      navigate("/dashboard");
+    } catch (error) {
+      console.error('Error during interview submission:', error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to submit interview. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [id, token, user, toast, navigate, selectedLanguage, code, notes, testResults]);
+
+  const sendCodeUpdate = useCallback((newCode: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'code_update', interviewId: id, code: newCode }));
+    }
+  }, [id]);
+
+  const sendNotesUpdate = useCallback((newNotes: string) => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ type: 'notes_update', interviewId: id, notes: newNotes }));
+    }
+  }, [id]);
+
+  const handleCodeChange = (newCode: string) => {
+    setCode(newCode);
+    sendCodeUpdate(newCode);
+  };
+
+  const handleNotesChange = (newNotes: string) => {
+    console.log("handleNotesChange called with:", newNotes);
+    setNotes(newNotes);
+    sendNotesUpdate(newNotes);
+  };
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [
+      h.toString().padStart(2, '0'),
+      m.toString().padStart(2, '0'),
+      s.toString().padStart(2, '0'),
+    ].join(':');
+  };
+
   const getBadgeVariant = (difficulty: string) => {
     switch (difficulty) {
       case 'HARD':
@@ -134,19 +272,234 @@ const Interview = () => {
     }
   };
 
-  // Effect to get user media (camera and microphone)
+  const codeExecutionService = new CodeExecutionService();
+
+  const handleRunCode = async () => {
+    const currentProblemData = interview?.questions[currentProblem];
+    if (!currentProblemData || !token) {
+      setAiInsightsResult({
+        suggestions: [],
+        potentialBugs: [],
+        statusMessage: "Error: Please select a problem and ensure you are authenticated."
+      });
+      setLoadingInterview(false); 
+      return;
+    }
+
+    if (userRole === "recruiter") {
+      setAiInsightsResult({
+        suggestions: [],
+        potentialBugs: [],
+        statusMessage: "Access Denied: Recruiters cannot execute code."
+      });
+      setLoadingInterview(false);
+      return;
+    }
+
+    setLoadingInterview(true);
+    setError(null);
+    setTestResults([]); 
+    setAiInsightsResult({
+      suggestions: [],
+      potentialBugs: [],
+      statusMessage: "Running code..." 
+    }); 
+
+    try {
+      console.log('Attempting to run code...', {
+        language: selectedLanguage,
+        testCases: currentProblemData.testCases,
+        codeLength: code.length
+      });
+
+      const executionService = new CodeExecutionService();
+      const result = await executionService.executeCode(
+        code,
+        selectedLanguage,
+        currentProblemData.testCases || [],
+        interview?.id || "",
+        currentProblemData.id,
+        {
+          title: currentProblemData.title,
+          description: currentProblemData.description,
+          difficulty: currentProblemData.difficulty
+        },
+        token
+      );
+
+      console.log('Code execution result received:', result);
+
+      setTestResults(result.testResults || []);
+      
+      setAiInsightsResult({
+        ...(result.aiInsights || { suggestions: [], potentialBugs: [] }),
+        statusMessage: `Code Execution Successful: ${result.message}`,
+      });
+
+      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+        ws.current.send(JSON.stringify({ type: 'test_results_update', results: result.testResults }));
+        ws.current.send(JSON.stringify({ type: 'ai_insights_update', insights: result.aiInsights })); 
+      }
+
+    } catch (err: any) {
+      console.error('Error during code execution:', err);
+      setError(err.message || "Failed to execute code"); 
+      
+      setAiInsightsResult({
+        suggestions: [],
+        potentialBugs: [],
+        statusMessage: `Code Execution Failed: ${err.message || "An unexpected error occurred."}`
+      });
+
+    } finally {
+      setLoadingInterview(false);
+    }
+  };
+
+  const handleGrantPermissions = async () => {
+    try {
+      // First request fullscreen
+      const element = document.documentElement;
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if ((element as any).webkitRequestFullscreen) {
+        await (element as any).webkitRequestFullscreen();
+      } else if ((element as any).msRequestFullscreen) {
+        await (element as any).msRequestFullscreen();
+      }
+
+      // Hide our modal first
+      setShowPermissionsModal(false);
+
+      // Then request media permissions after a short delay
+      setTimeout(async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: true,
+          });
+
+          // Stop the stream immediately as we just needed the permissions
+          stream.getTracks().forEach(track => track.stop());
+
+          setPermissionsGranted(true);
+          setIsVideoEnabled(true);
+          setIsAudioEnabled(true);
+        } catch (err) {
+          console.error('Error granting media permissions:', err);
+          toast({
+            title: "Permission Error",
+            description: "Please allow camera and microphone access to continue with the interview.",
+            variant: "destructive",
+          });
+          // Show the modal again if permissions were denied
+          setShowPermissionsModal(true);
+        }
+      }, 500); // 500ms delay to ensure our modal is hidden first
+
+    } catch (err) {
+      console.error('Error entering fullscreen:', err);
+      toast({
+        title: "Fullscreen Error",
+        description: "Please allow fullscreen access to continue with the interview.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Render loading state early
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // useEffect hooks
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isInFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(isInFullscreen);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        const newViolationCount = violationCount + 1;
+        setViolationCount(newViolationCount);
+        
+        // Show toast notification
+        toast({
+          title: "Warning: Window Switch Detected",
+          description: `Switching windows or tabs is not allowed. This is violation ${newViolationCount} of 3. Your submission will be automatically submitted after 3 violations.`,
+          variant: "destructive",
+        });
+
+        if (newViolationCount >= 3) {
+          // Auto-submit immediately after 3rd violation
+          toast({
+            title: "Interview Ended",
+            description: "Your interview has been automatically submitted due to multiple window switches.",
+            variant: "destructive",
+          });
+          handleSubmitInterview();
+        }
+      }
+    };
+
+    // Add event listeners
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      // Clean up event listeners
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [violationCount, handleSubmitInterview, toast]);
+
+  const enterFullscreen = async () => {
+    try {
+      const element = document.documentElement;
+      if (element.requestFullscreen) {
+        await element.requestFullscreen();
+      } else if ((element as any).webkitRequestFullscreen) { // Safari
+        await (element as any).webkitRequestFullscreen();
+      } else if ((element as any).msRequestFullscreen) { // IE11
+        await (element as any).msRequestFullscreen();
+      }
+    } catch (err) {
+      console.error('Error entering fullscreen:', err);
+      toast({
+        title: "Fullscreen Error",
+        description: "Please click the fullscreen button to enter fullscreen mode.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     const getMedia = async () => {
       try {
         console.log('Attempting to get media stream...');
-      const stream = await navigator.mediaDevices.getUserMedia({
+        const stream = await navigator.mediaDevices.getUserMedia({
           video: isVideoEnabled,
           audio: isAudioEnabled,
-      });
+        });
         console.log('Media stream obtained:', stream);
 
-      if (localStreamRef.current) {
-        localStreamRef.current.srcObject = stream;
+        if (localStreamRef.current) {
+          localStreamRef.current.srcObject = stream;
           console.log('Video stream assigned to localStreamRef.current.srcObject');
           console.log('localStreamRef.current after assignment:', localStreamRef.current);
         } else {
@@ -159,7 +512,6 @@ const Interview = () => {
           description: "Please allow camera and microphone access to participate in the interview.",
           variant: "destructive",
         });
-        // Optionally, disable video/audio toggles if access is denied
         if (err instanceof Error && err.name === 'NotAllowedError') {
           setIsVideoEnabled(false);
           setIsAudioEnabled(false);
@@ -169,7 +521,6 @@ const Interview = () => {
 
     getMedia();
 
-    // Clean up function to stop media tracks when component unmounts or dependencies change
     return () => {
       if (localStreamRef.current && localStreamRef.current.srcObject) {
         console.log('Stopping media tracks.');
@@ -177,9 +528,8 @@ const Interview = () => {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [isVideoEnabled, isAudioEnabled, toast]); // Re-run if video/audio toggles change
+  }, [isVideoEnabled, isAudioEnabled, toast]);
 
-  // WebSocket connection effect
   useEffect(() => {
     if (!id || !user) return;
 
@@ -224,35 +574,8 @@ const Interview = () => {
     };
   }, [id, user]);
 
-  // Send code updates over WebSocket
-  const sendCodeUpdate = useCallback((newCode: string) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'code_update', interviewId: id, code: newCode }));
-    }
-  }, [id]);
-
-  // Send notes updates over WebSocket
-  const sendNotesUpdate = useCallback((newNotes: string) => {
-    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-      ws.current.send(JSON.stringify({ type: 'notes_update', interviewId: id, notes: newNotes }));
-    }
-  }, [id]);
-
-  // Handle code editor changes
-  const handleCodeChange = (newCode: string) => {
-    setCode(newCode);
-    sendCodeUpdate(newCode);
-  };
-
-  // Handle notes changes
-  const handleNotesChange = (newNotes: string) => {
-    setNotes(newNotes);
-    sendNotesUpdate(newNotes);
-  };
-
-  // Timer effect
   useEffect(() => {
-    if (isSubmitted || !interview || timeElapsed >= timeLimit) return; // Stop timer if submitted or time limit reached
+    if (isSubmitted || !interview || timeElapsed >= timeLimit) return;
 
     const timer = setInterval(() => {
       setTimeElapsed((prevTime) => prevTime + 1);
@@ -261,17 +584,16 @@ const Interview = () => {
     return () => clearInterval(timer);
   }, [isSubmitted, timeElapsed, timeLimit, interview]);
 
-  // Fetch interview details including questions
   useEffect(() => {
     const fetchInterview = async () => {
       if (!token) {
         setError('Authentication required');
-        setLoading(false);
+        setLoadingInterview(false);
         return;
       }
 
       try {
-        const response = await fetch(`http://localhost:3001/api/interviews/${id}`, {
+        const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/interviews/${id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
           },
@@ -285,15 +607,15 @@ const Interview = () => {
         setInterview(data);
         setTimeLimit(data.duration);
         
-        // Set initial problem if there are questions
         if (data.questions && data.questions.length > 0) {
           setCurrentProblem(0);
+          setCode(data.questions[0].initialCode || "// Write your solution here\n\nfunction solve(input) {\n    // Your code here\n    return result;\n}");
         }
       } catch (err) {
         console.error('Error fetching interview:', err);
         setError('Failed to load interview details');
       } finally {
-        setLoading(false);
+        setLoadingInterview(false);
       }
     };
 
@@ -329,187 +651,76 @@ const Interview = () => {
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
-
-  const formatTime = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return [
-      h.toString().padStart(2, '0'),
-      m.toString().padStart(2, '0'),
-      s.toString().padStart(2, '0'),
-    ].join(':');
-  };
-
-  const codeExecutionService = new CodeExecutionService();
-
-  // Replace the old handleRunCode with this new implementation
-  const handleRunCode = async () => {
-    if (!currentProblemData || !token) {
-      setAiInsightsResult({
-        suggestions: [],
-        potentialBugs: [],
-        statusMessage: "Error: Please select a problem and ensure you are authenticated."
-      });
-      setLoading(false); // Ensure loading is off on early exit
-      return;
-    }
-
-    if (userRole === "recruiter") {
-      setAiInsightsResult({
-        suggestions: [],
-        potentialBugs: [],
-        alternativeSolutions: [],
-        statusMessage: "Access Denied: Recruiters cannot execute code."
-      });
-      setLoading(false); // Ensure loading is off on early exit
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    setTestResults([]); // Clear previous test results
-    setAiInsightsResult({
-      suggestions: [],
-      potentialBugs: [],
-      statusMessage: "Running code..." // Set initial message within AI insights
-    }); 
-
-    try {
-      console.log('Attempting to run code...', {
-        language: selectedLanguage,
-        testCases: currentProblemData.testCases,
-        codeLength: code.length
-      });
-
-      const executionService = new CodeExecutionService();
-      const result = await executionService.executeCode(
-        code,
-        selectedLanguage,
-        currentProblemData.testCases || [],
-        interview?.id || "",
-        currentProblemData.id,
-        {
-          title: currentProblemData.title,
-          description: currentProblemData.description,
-          difficulty: currentProblemData.difficulty
-        },
-        token
-      );
-
-      console.log('Code execution result received:', result);
-
-      setTestResults(result.testResults || []);
-      
-      // Update aiInsightsResult with actual insights and status message
-      setAiInsightsResult({
-        ...(result.aiInsights || { suggestions: [], potentialBugs: [] }),
-        statusMessage: `Code Execution Successful: ${result.message}`,
-      });
-
-      // Send test results and AI insights over WebSocket
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-        ws.current.send(JSON.stringify({ type: 'test_results_update', results: result.testResults }));
-        ws.current.send(JSON.stringify({ type: 'ai_insights_update', insights: result.aiInsights })); // Send the updated insights
-      }
-
-    } catch (err: any) {
-      console.error('Error during code execution:', err);
-      setError(err.message || "Failed to execute code"); // Keep existing error for problem section if needed
-      
-      // Update aiInsightsResult with error message
-      setAiInsightsResult({
-        suggestions: [],
-        potentialBugs: [],
-        statusMessage: `Code Execution Failed: ${err.message || "An unexpected error occurred."}`
-      });
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Handle interview submission
-  const handleSubmitInterview = async () => { // Made async to await backend call
-    console.log('Interview submitted!');
-    setIsSubmitted(true);
-
-    if (!id || !token) {
-      console.error('Interview ID or token is missing, cannot generate/navigate to feedback page.');
-      // Optionally, display an error to the user
-      return;
-    }
-
-    try {
-      // Trigger feedback generation on the backend
-      console.log(`Sending request to generate feedback for interview ID: ${id}`);
-      const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3001/api'}/feedback/${id}/feedback`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json', // Even if body is empty, good practice to include
-        },
-        // No body needed as backend fetches necessary data from snapshots
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('Failed to generate feedback on backend:', {
-          status: response.status,
-          statusText: response.statusText,
-          errorData
-        });
-        throw new Error(errorData.message || `Backend error: ${response.status} ${response.statusText}`);
-      }
-
-      console.log('Feedback generation triggered successfully.');
-      // Navigate to the candidate feedback page after successful generation
-      navigate(`/feedback/${id}`);
-
-    } catch (error) {
-      console.error('Error during feedback submission/generation:', error);
-      // Optionally, display an error to the user
-      toast({
-        title: "Feedback Submission Failed",
-        description: error instanceof Error ? error.message : "An unexpected error occurred during feedback generation.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
+  
   const problems = interview?.questions || [];
   const currentProblemData = problems[currentProblem];
 
   return (
     <div className="h-screen bg-gray-50 flex flex-col">
+      {showPermissionsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-xl relative z-[9999]">
+            <h2 className="text-2xl font-bold mb-4">Interview Requirements</h2>
+            <div className="space-y-4">
+              <p className="text-gray-600">
+                To ensure a secure and effective interview experience, we need the following permissions:
+              </p>
+              <ul className="list-disc list-inside space-y-2 text-gray-600">
+                <li>Camera access for video recording</li>
+                <li>Microphone access for audio recording</li>
+                <li>Fullscreen mode to prevent distractions</li>
+              </ul>
+              <p className="text-gray-600">
+                Please click "Allow" to grant these permissions and start your interview.
+              </p>
+              <div className="flex justify-end space-x-4 mt-6">
+                <Button
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleGrantPermissions}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
+                  Allow
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-white border-b shadow-sm px-6 py-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                <Code className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                InterviewAI
-              </span>
-            </div>
-            <Separator orientation="vertical" className="h-6" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(-1)}
+              className="hover:bg-gray-100"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <div>
-              <h1 className="text-lg font-semibold text-gray-900">Coding Interview</h1>
-              <p className="text-sm text-gray-600">Problem {currentProblem + 1} of {problems.length}</p>
+              <h1 className="text-xl font-semibold">{interview?.title}</h1>
+              <p className="text-sm text-gray-500">{interview?.company}</p>
             </div>
           </div>
-
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2">
+            {!isFullscreen && !showPermissionsModal && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={enterFullscreen}
+                className="flex items-center space-x-2"
+              >
+                <Monitor className="h-4 w-4" />
+                <span>Enter Fullscreen</span>
+              </Button>
+            )}
             {/* Timer */}
             <div className="flex items-center space-x-1 text-gray-700">
               <Clock className="w-4 h-4" />
@@ -531,7 +742,20 @@ const Interview = () => {
             {/* Buttons for navigation or submission */}
             <Button variant="outline" size="sm" onClick={() => setCurrentProblem(prev => Math.max(0, prev - 1))} disabled={currentProblem === 0}>Previous</Button>
             <Button variant="outline" size="sm" onClick={() => setCurrentProblem(prev => Math.min(problems.length - 1, prev + 1))} disabled={currentProblem === problems.length - 1}>Next</Button>
-            <Button size="sm" onClick={handleSubmitInterview}>Submit Interview</Button>
+            <Button 
+              size="sm" 
+              onClick={handleSubmitInterview}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                "Submit Interview"
+              )}
+            </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">
@@ -543,11 +767,7 @@ const Interview = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back to Dashboard
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="mr-2 h-4 w-4" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuItem>
+                <DropdownMenuItem onClick={() => navigate('/dashboard')}>
                   <LogOut className="mr-2 h-4 w-4" />
                 End Interview
                 </DropdownMenuItem>
@@ -568,7 +788,7 @@ const Interview = () => {
             </TabsList>
 
             <TabsContent value="problem" className="flex-1 p-4 pt-2 overflow-auto">
-              {loading ? (
+              {loadingInterview ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
                 </div>
@@ -637,7 +857,7 @@ const Interview = () => {
           <div className="flex-1">
             <CodeEditor
               value={code}
-              language={selectedLanguage} // Use selectedLanguage for the editor
+              language={selectedLanguage} 
               onChange={handleCodeChange}
             />
           </div>
@@ -651,7 +871,7 @@ const Interview = () => {
                     <Code className="mr-2 h-5 w-5" />AI Code Analysis
                   </CardTitle>
                   <CollapsibleTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                    <Button variant="ghost" size="icon">
                       <ChevronsUpDown className="h-4 w-4" />
                       <span className="sr-only">Toggle AI Insights</span>
                     </Button>
@@ -659,7 +879,6 @@ const Interview = () => {
                 </CardHeader>
                 <CollapsibleContent>
                   <CardContent className="max-h-[300px] overflow-y-auto">
-                    {/* Display Status Message at the top of AI Insights */}
                     {aiInsightsResult.statusMessage && (
                       <Alert className={`mb-4 ${aiInsightsResult.statusMessage.includes("Successful") ? 'bg-green-100 text-green-800 border-green-200' : 'bg-red-100 text-red-800 border-red-200'}`}>
                         <AlertDescription>{aiInsightsResult.statusMessage}</AlertDescription>
@@ -704,7 +923,7 @@ const Interview = () => {
           style={{
             left: videoPanelPosition.x,
             top: videoPanelPosition.y,
-            zIndex: 1000, // Ensure it floats above other content
+            zIndex: 1000, 
           }}
         >
           <div className="p-4 border-b flex justify-between items-center cursor-move" onMouseDown={handleMouseDown}>
@@ -729,7 +948,7 @@ const Interview = () => {
                 ref={localStreamRef}
                 autoPlay
                 playsInline
-                muted // Mute local preview
+                muted 
                 className="w-full h-full object-cover"
               ></video>
               {userRole === "candidate" && localStreamRef.current?.srcObject && (

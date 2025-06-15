@@ -15,9 +15,9 @@ import InterviewRoom from '@/pages/InterviewRoom';
 import AIReport from '@/pages/AIReport';
 import JoinInterview from '@/pages/JoinInterview';
 import CandidateFeedback from '@/pages/CandidateFeedback';
+import RecruiterFeedback from '@/pages/RecruiterFeedback';
 import NotFound from '@/pages/NotFound';
 import CreateInterview from '@/pages/CreateInterview';
-import Positions from './pages/Positions';
 import Questions from './pages/Questions';
 
 const queryClient = new QueryClient();
@@ -38,10 +38,8 @@ function App() {
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/interview/create" element={<CreateInterview />} />
               <Route path="/interview/:id" element={<InterviewRoom />} />
-              <Route path="/interview/:id/report" element={<AIReport />} />
+              <Route path="/interview/:id/feedback" element={<CandidateFeedback />} />
               <Route path="/join" element={<JoinInterview />} />
-              <Route path="/feedback/:id" element={<CandidateFeedback />} />
-              <Route path="/positions" element={<Positions />} />
               <Route path="/questions" element={<Questions />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />

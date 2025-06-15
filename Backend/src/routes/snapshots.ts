@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 // Save a new snapshot (code + transcript)
 router.post("/:id/snapshot", authenticateJWT, async (req: express.Request, res: express.Response): Promise<void> => {
   const { id: interviewId } = req.params;
-  const { filename, language, code, transcript } = req.body;
+  const { filename, language, code, transcript, communicationData } = req.body;
   const userId = req.user?.id;
 
   if (!userId) { res.status(401).json({ message: "Unauthorized" }); return; }
@@ -21,8 +21,28 @@ router.post("/:id/snapshot", authenticateJWT, async (req: express.Request, res: 
       res.status(403).json({ message: "Access denied" });
       return;
     }
+
+    // Enhanced transcript with communication data
+    const enhancedTranscript = {
+      timestamp: new Date().toISOString(),
+      speaker: userId === interview.interviewerId ? 'interviewer' : 'candidate',
+      content: transcript,
+      communicationMetrics: {
+        clarity: communicationData?.clarity || null,
+        technicalAccuracy: communicationData?.technicalAccuracy || null,
+        responseTime: communicationData?.responseTime || null,
+        engagement: communicationData?.engagement || null
+      }
+    };
+
     const snapshot = await prisma.codeSnapshot.create({
-      data: { interviewId, filename, language, code, transcript }
+      data: { 
+        interviewId, 
+        filename, 
+        language, 
+        code, 
+        transcript: JSON.stringify(enhancedTranscript)
+      }
     });
     res.status(201).json(snapshot);
     return;
