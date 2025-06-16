@@ -1,0 +1,729 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# InterviewAI Project Requirements Document
+
+## Table of Contents
+1. [Project Overview](mdc:#project-overview)
+2. [System Architecture](mdc:#system-architecture)
+3. [Feature Requirements](mdc:#feature-requirements)
+4. [Technical Requirements](mdc:#technical-requirements)
+5. [User Interface Requirements](mdc:#user-interface-requirements)
+6. [Security Requirements](mdc:#security-requirements)
+7. [Performance Requirements](mdc:#performance-requirements)
+8. [Testing Requirements](mdc:#testing-requirements)
+
+## Project Overview
+
+### Purpose
+InterviewAI is an AI-powered technical interview platform designed to streamline the interview process by providing real-time code execution, automated feedback, and comprehensive performance analysis.
+
+### Target Users
+- Recruiters/Interviewers
+- Technical Candidates
+- HR Managers
+- System Administrators
+
+## System Architecture
+
+### Technology Stack Justification
+
+#### Frontend Technologies
+- **React 18**
+  - Why: Latest version with improved concurrent rendering
+  - Benefits: Better performance, automatic batching, transitions API
+  - Key features: Suspense, Server Components support
+
+- **TypeScript**
+  - Why: Type safety and better developer experience
+  - Benefits: Catch errors early, better IDE support, easier refactoring
+  - Integration: Native support with React and Vite
+
+- **Vite**
+  - Why: Modern build tool with instant server start
+  - Benefits: Hot Module Replacement (HMR), optimized builds, fast refresh
+  - Features: Native TypeScript support, CSS modules, dynamic imports
+
+- **Zustand**
+  - Why: Lightweight state management with minimal boilerplate
+  - Benefits: Simple API, TypeScript support, middleware system
+  - Use cases: Global state, authentication, theme management
+
+- **Shadcn/ui**
+  - Why: Accessible and customizable component library
+  - Benefits: Modern design, copy-paste components, Tailwind integration
+  - Features: Dark mode support, responsive components
+
+- **Tailwind CSS**
+  - Why: Utility-first CSS framework for rapid development
+  - Benefits: No CSS files, responsive design, customizable
+  - Integration: Works well with Shadcn/ui and React
+
+- **Monaco Editor**
+  - Why: Professional-grade code editor (powers VS Code)
+  - Benefits: Syntax highlighting, IntelliSense, multiple language support
+  - Features: Code completion, error detection, themes
+
+#### Backend Technologies
+- **Node.js**
+  - Why: JavaScript runtime for server-side development
+  - Benefits: Large ecosystem, async I/O, easy integration with frontend
+  - Features: NPM package management, ES modules support
+
+- **Express**
+  - Why: Minimal and flexible Node.js framework
+  - Benefits: Easy routing, middleware support, large community
+  - Features: REST API support, error handling, static file serving
+
+- **PostgreSQL**
+  - Why: Robust relational database with JSON support
+  - Benefits: ACID compliance, complex queries, scalability
+  - Features: Full-text search, transactions, triggers
+
+- **Prisma**
+  - Why: Modern ORM with type safety
+  - Benefits: Auto-generated types, migrations, query builder
+  - Features: Schema management, relations, middleware
+
+- **OpenAI GPT-4**
+  - Why: State-of-the-art language model for feedback
+  - Benefits: Natural language understanding, code analysis
+  - Features: Code review, feedback generation, problem analysis
+
+- **WebSocket**
+  - Why: Real-time bidirectional communication
+  - Benefits: Low latency, persistent connection
+  - Use cases: Live coding, chat, notifications
+
+## Detailed Project Structure
+
+```
+project-root/
+├── Frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── auth/
+│   │   │   │   ├── LoginForm.tsx
+│   │   │   │   ├── RegisterForm.tsx
+│   │   │   │   └── AuthGuard.tsx
+│   │   │   ├── interview/
+│   │   │   │   ├── CodeEditor.tsx
+│   │   │   │   ├── VideoStream.tsx
+│   │   │   │   └── TestCases.tsx
+│   │   │   ├── feedback/
+│   │   │   │   ├── FeedbackDisplay.tsx
+│   │   │   │   ├── ScoreCard.tsx
+│   │   │   │   └── Recommendations.tsx
+│   │   │   └── common/
+│   │   │       ├── Button.tsx
+│   │   │       ├── Input.tsx
+│   │   │       └── Modal.tsx
+│   │   ├── contexts/
+│   │   │   ├── AuthContext.tsx
+│   │   │   └── ThemeContext.tsx
+│   │   ├── hooks/
+│   │   │   ├── useAuth.ts
+│   │   │   ├── useWebSocket.ts
+│   │   │   └── useCodeEditor.ts
+│   │   ├── pages/
+│   │   │   ├── dashboard/
+│   │   │   │   ├── RecruiterDashboard.tsx
+│   │   │   │   └── CandidateDashboard.tsx
+│   │   │   ├── interview/
+│   │   │   │   ├── InterviewRoom.tsx
+│   │   │   │   └── InterviewSetup.tsx
+│   │   │   └── feedback/
+│   │   │       ├── FeedbackReport.tsx
+│   │   │       └── AnalyticsDashboard.tsx
+│   │   ├── services/
+│   │   │   ├── api.ts
+│   │   │   ├── websocket.ts
+│   │   │   └── monaco.ts
+│   │   ├── store/
+│   │   │   ├── authStore.ts
+│   │   │   └── interviewStore.ts
+│   │   ├── styles/
+│   │   │   ├── globals.css
+│   │   │   └── themes.css
+│   │   ├── types/
+│   │   │   ├── interview.ts
+│   │   │   └── feedback.ts
+│   │   └── utils/
+│   │       ├── formatters.ts
+│   │       └── validators.ts
+│   ├── public/
+│   │   ├── assets/
+│   │   └── fonts/
+│   ├── tests/
+│   │   ├── unit/
+│   │   └── integration/
+│   └── config/
+│       ├── vite.config.ts
+│       └── tailwind.config.js
+│
+├── Backend/
+│   ├── src/
+│   │   ├── routes/
+│   │   │   ├── auth.ts
+│   │   │   ├── interviews.ts
+│   │   │   └── feedback.ts
+│   │   ├── controllers/
+│   │   │   ├── authController.ts
+│   │   │   ├── interviewController.ts
+│   │   │   └── feedbackController.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts
+│   │   │   ├── validation.ts
+│   │   │   └── error.ts
+│   │   ├── services/
+│   │   │   ├── ai/
+│   │   │   │   ├── openai.ts
+│   │   │   │   └── prompts.ts
+│   │   │   ├── feedback/
+│   │   │   │   ├── analyzer.ts
+│   │   │   │   └── generator.ts
+│   │   │   └── websocket/
+│   │   │       ├── handler.ts
+│   │   │       └── events.ts
+│   │   ├── utils/
+│   │   │   ├── logger.ts
+│   │   │   └── helpers.ts
+│   │   └── types/
+│   │       ├── express.d.ts
+│   │       └── models.d.ts
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── migrations/
+│   ├── tests/
+│   │   ├── unit/
+│   │   └── integration/
+│   └── config/
+│       ├── default.ts
+│       └── production.ts
+│
+├── shared/
+│   ├── types/
+│   │   ├── interview.ts
+│   │   └── feedback.ts
+│   └── constants/
+│       ├── roles.ts
+│       └── events.ts
+│
+├── docs/
+│   ├── api/
+│   ├── setup/
+│   └── deployment/
+│
+└── scripts/
+    ├── setup.sh
+    └── deploy.sh
+```
+
+### Key Directory Purposes
+
+#### Frontend Structure
+- **components/**: Reusable UI components organized by feature
+- **contexts/**: React context providers for global state
+- **hooks/**: Custom React hooks for shared logic
+- **pages/**: Route components and page layouts
+- **services/**: API and external service integrations
+- **store/**: Zustand store configurations
+- **styles/**: Global styles and theme configurations
+- **types/**: TypeScript type definitions
+- **utils/**: Helper functions and utilities
+
+#### Backend Structure
+- **routes/**: Express route definitions
+- **controllers/**: Request handlers and business logic
+- **middleware/**: Express middleware functions
+- **services/**: Core business logic and external integrations
+- **utils/**: Helper functions and utilities
+- **types/**: TypeScript type definitions
+- **prisma/**: Database schema and migrations
+
+#### Shared Structure
+- **types/**: Shared TypeScript interfaces
+- **constants/**: Shared constant values
+- **utils/**: Shared utility functions
+
+## Feature Requirements
+
+### 1. Authentication System
+- Secure user registration and login
+- Role-based access control (Recruiter, Candidate, Admin)
+- JWT token management
+- Password recovery system
+- Session management
+
+### 2. Interview Management
+- **Interview Creation**
+  - Custom interview settings
+  - Question bank integration
+  - Scheduling system
+  - Join code generation
+
+- **Interview Execution**
+  - Real-time code execution
+  - Multiple language support
+  - Test case validation
+  - Live video streaming
+  - Screen sharing
+
+### 3. Code Editor Features
+- Syntax highlighting
+- Auto-completion
+- Multiple file support
+- Real-time collaboration
+- Code execution
+- Test case running
+
+### 4. AI-Powered Feedback System
+- **Automated Analysis**
+  - Code quality assessment (0-100)
+  - Problem-solving evaluation (0-100)
+  - Technical skills assessment (0-100)
+  - Overall performance score
+
+- **Comprehensive Feedback**
+  - Detailed code analysis
+  - Strengths identification
+  - Areas for improvement
+  - Code feedback summary
+  - Next steps recommendations
+
+- **Feedback Components**
+  - Visual score representation
+  - Detailed breakdown of metrics
+  - Actionable improvement suggestions
+  - Code quality insights
+  - Performance trends
+
+### 5. Monitoring System
+- **Interview Proctoring**
+  - Window focus tracking
+  - Tab switch detection
+  - Copy-paste monitoring
+  - External resource usage detection
+
+- **Performance Tracking**
+  - Code snapshot history
+  - Time management metrics
+  - Violation logging
+  - Progress tracking
+
+### 6. Reporting System
+- **Interview Reports**
+  - Comprehensive performance analysis
+  - Code quality metrics
+  - Technical skill evaluation
+  - Communication assessment
+  - Violation summary
+
+- **Analytics Dashboard**
+  - Performance trends
+  - Interview statistics
+  - Candidate comparisons
+  - Success metrics
+
+## Technical Requirements
+
+### Frontend Requirements
+- **Browser Compatibility**
+  - Chrome (latest 2 versions)
+  - Firefox (latest 2 versions)
+  - Safari (latest 2 versions)
+  - Edge (latest 2 versions)
+
+- **Responsive Design**
+  - Desktop (1920x1080 and above)
+  - Laptop (1366x768 and above)
+  - Tablet (768x1024)
+  - Mobile optimization
+
+- **Performance**
+  - Initial load time < 3s
+  - Time to interactive < 5s
+  - 60 FPS animations
+  - Optimized bundle size
+
+### Backend Requirements
+- **API Performance**
+  - Response time < 200ms
+  - Handling 1000+ concurrent users
+  - 99.9% uptime
+  - Efficient data caching
+
+- **Database**
+  - ACID compliance
+  - Data backup system
+  - Migration management
+  - Query optimization
+
+- **AI Integration**
+  - Response time < 5s
+  - Fallback mechanisms
+  - Error handling
+  - Rate limiting
+
+## User Interface Requirements
+
+### Design System
+- **Components**
+  - Consistent styling
+  - Accessible components
+  - Dark/Light mode support
+  - Responsive layouts
+
+- **Visual Elements**
+  - Modern UI design
+  - Clear typography
+  - Intuitive icons
+  - Loading states
+  - Error states
+
+### Accessibility
+- WCAG 2.1 compliance
+- Screen reader support
+- Keyboard navigation
+- Color contrast compliance
+
+## Security Requirements
+
+### Data Protection
+- End-to-end encryption
+- Secure data storage
+- Regular security audits
+- GDPR compliance
+
+### Authentication
+- Multi-factor authentication
+- Session management
+- Password policies
+- Access control
+
+## Performance Requirements
+
+### System Performance
+- **Frontend**
+  - < 3s page load
+  - < 100ms interaction response
+  - Optimized asset loading
+  - Efficient state management
+
+- **Backend**
+  - < 200ms API response
+  - Efficient database queries
+  - Optimized AI processing
+  - Scalable architecture
+
+### Scalability
+- Horizontal scaling support
+- Load balancing
+- Caching strategies
+- Resource optimization
+
+## Testing Requirements
+
+### Testing Levels
+- Unit Testing
+- Integration Testing
+- End-to-End Testing
+- Performance Testing
+- Security Testing
+
+### Quality Assurance
+- Code review process
+- Automated testing
+- Manual testing
+- User acceptance testing
+
+### Documentation
+- API documentation
+- User guides
+- Technical documentation
+- Deployment guides
+
+## Development Practices and Standards
+
+### Code Organization
+
+#### Component Structure
+```typescript
+// Standard React Component Structure
+import { useState, useEffect } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { Button } from '@/components/ui/button';
+import styles from './ComponentName.module.css';
+
+interface ComponentNameProps {
+  // Props interface
+}
+
+export const ComponentName: React.FC<ComponentNameProps> = ({ prop1, prop2 }) => {
+  // State and hooks
+  // Component logic
+  return (
+    // JSX
+  );
+};
+```
+
+#### File Naming Conventions
+- React Components: PascalCase (e.g., `UserProfile.tsx`)
+- Hooks: camelCase with 'use' prefix (e.g., `useAuth.ts`)
+- Utilities: camelCase (e.g., `formatDate.ts`)
+- Constants: UPPER_SNAKE_CASE (e.g., `API_ENDPOINTS.ts`)
+- Styles: componentName.module.css
+
+### Coding Standards
+
+#### TypeScript Best Practices
+- Enable strict mode in `tsconfig.json`
+- Use explicit type annotations for function parameters
+- Prefer interfaces over type aliases for objects
+- Use enums for fixed sets of values
+- Implement proper error handling with custom types
+
+#### React Best Practices
+- Use functional components with hooks
+- Implement proper prop typing
+- Use React.memo for performance optimization
+- Implement error boundaries
+- Follow the React hooks rules
+
+#### State Management Guidelines
+```typescript
+// Zustand Store Example
+import create from 'zustand';
+
+interface AuthStore {
+  user: User | null;
+  token: string | null;
+  login: (credentials: Credentials) => Promise<void>;
+  logout: () => void;
+}
+
+export const useAuthStore = create<AuthStore>((set) => ({
+  user: null,
+  token: null,
+  login: async (credentials) => {
+    // Implementation
+  },
+  logout: () => set({ user: null, token: null }),
+}));
+```
+
+### API Integration Standards
+
+#### REST API Structure
+```typescript
+// API Service Example
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.VITE_API_URL,
+  timeout: 10000,
+});
+
+export const interviewApi = {
+  create: async (data: CreateInterviewDto) => {
+    const response = await api.post('/interviews', data);
+    return response.data;
+  },
+  // Other methods
+};
+```
+
+#### WebSocket Integration
+```typescript
+// WebSocket Hook Example
+export const useWebSocket = (interviewId: string) => {
+  const socket = useRef<WebSocket | null>(null);
+  
+  useEffect(() => {
+    socket.current = new WebSocket(`${WS_URL}/interviews/${interviewId}`);
+    
+    return () => {
+      socket.current?.close();
+    };
+  }, [interviewId]);
+  
+  // Implementation
+};
+```
+
+### Testing Standards
+
+#### Unit Testing
+```typescript
+// Jest + React Testing Library Example
+describe('InterviewRoom', () => {
+  it('should render code editor', () => {
+    render(<InterviewRoom />);
+    expect(screen.getByTestId('code-editor')).toBeInTheDocument();
+  });
+  
+  it('should handle code changes', async () => {
+    // Test implementation
+  });
+});
+```
+
+#### Integration Testing
+```typescript
+// API Integration Test Example
+describe('Interview API', () => {
+  it('should create new interview', async () => {
+    const response = await request(app)
+      .post('/api/interviews')
+      .send(mockInterviewData);
+    
+    expect(response.status).toBe(201);
+    expect(response.body).toHaveProperty('id');
+  });
+});
+```
+
+### Documentation Standards
+
+#### Component Documentation
+```typescript
+/**
+ * FeedbackDisplay Component
+ * 
+ * Displays interview feedback with scores and recommendations
+ * 
+ * @component
+ * @example
+ * ```tsx
+ * <FeedbackDisplay
+ *   feedback={feedbackData}
+ *   onShare={handleShare}
+ * />
+ * ```
+ */
+export const FeedbackDisplay: React.FC<FeedbackDisplayProps> = ({
+  feedback,
+  onShare,
+}) => {
+  // Implementation
+};
+```
+
+#### API Documentation
+```typescript
+/**
+ * Creates a new interview session
+ * 
+ * @route POST /api/interviews
+ * @param {CreateInterviewDto} data - Interview creation data
+ * @returns {Promise<Interview>} Created interview
+ * @throws {400} Invalid input data
+ * @throws {401} Unauthorized
+ */
+export const createInterview = async (
+  data: CreateInterviewDto
+): Promise<Interview> => {
+  // Implementation
+};
+```
+
+### Error Handling Standards
+
+#### Frontend Error Handling
+```typescript
+// Error Boundary Component
+export class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <ErrorFallback />;
+    }
+    return this.props.children;
+  }
+}
+```
+
+#### Backend Error Handling
+```typescript
+// Custom Error Classes
+export class APIError extends Error {
+  constructor(
+    public statusCode: number,
+    message: string,
+    public isOperational = true
+  ) {
+    super(message);
+    Object.setPrototypeOf(this, APIError.prototype);
+  }
+}
+
+// Error Handler Middleware
+export const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
+  // Implementation
+};
+```
+
+## Implementation Guidelines
+
+### Development Workflow
+1. Feature branch creation
+2. Code implementation
+3. Unit test writing
+4. Code review process
+5. Integration testing
+6. Deployment to staging
+7. User acceptance testing
+8. Production deployment
+
+### Code Standards
+- TypeScript strict mode
+- ESLint configuration
+- Prettier formatting
+- Component documentation
+- Code comments
+- Performance optimization
+
+### Deployment Strategy
+- CI/CD pipeline
+- Automated testing
+- Staging environment
+- Production environment
+- Rollback procedures
+
+## Maintenance Requirements
+
+### Regular Updates
+- Security patches
+- Dependency updates
+- Feature enhancements
+- Bug fixes
+
+### Monitoring
+- Error tracking
+- Performance monitoring
+- Usage analytics
+- Security monitoring
+
+### Support
+- Technical support
+- User support
+- Documentation updates
+- Training materials
+
+
+
+```

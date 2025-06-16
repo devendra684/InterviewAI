@@ -1,0 +1,176 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Loveable Project - Technical Interview Platform
+
+## Project Overview
+Loveable is an advanced technical interview platform that combines real-time code execution, AI-powered analysis, and secure monitoring to provide a comprehensive interview experience. The platform enables recruiters to conduct technical interviews while ensuring code integrity and providing valuable insights through AI analysis.
+
+## Core Features
+1. **Real-time Code Execution**
+   - Live code compilation and execution
+   - Support for multiple programming languages
+   - Automated test case validation
+   - Real-time feedback and results
+
+2. **AI-Powered Analysis**
+   - Code quality assessment
+   - Plagiarism detection using vector embeddings
+   - Performance optimization suggestions
+   - Best practice recommendations
+
+3. **Secure Interview Environment**
+   - Role-based access control
+   - Candidate-specific security measures:
+     - Mandatory screen sharing
+     - Video/audio monitoring
+     - Anti-cheating measures
+     - Violation detection system
+   - Recruiter access:
+     - Read-only observation mode
+     - No permission requirements
+     - Real-time monitoring
+     - Evaluation tools
+
+4. **Collaborative Features**
+   - Real-time code synchronization
+   - Shared notes and feedback
+   - Interview progress tracking
+   - Candidate evaluation tools
+
+## Technology Stack
+
+### Frontend
+- **Framework**: React with TypeScript
+- **UI Components**: Custom components with Tailwind CSS
+- **State Management**: React Context API
+- **Real-time Communication**: WebSocket
+- **Code Editor**: Monaco Editor
+- **Media Handling**: WebRTC for video/audio
+
+### Backend
+- **Runtime**: Node.js with Express
+- **Database**: 
+  - PostgreSQL (main database)
+  - pgvector (for code embeddings)
+- **ORM**: Prisma
+- **Authentication**: JWT
+- **AI Integration**: OpenAI API
+- **Code Execution**: Docker containers
+
+### DevOps
+- **Containerization**: Docker
+- **Version Control**: Git
+- **CI/CD**: GitHub Actions
+- **Environment Management**: dotenv
+
+## Implementation Process
+
+### 1. Code Execution System
+- Docker containerization for secure code execution
+- Language-specific execution environments
+- Test case validation framework
+- Real-time result streaming
+
+### 2. AI Analysis Pipeline
+- Code embedding generation using OpenAI
+- Vector similarity search for plagiarism detection
+- Code quality analysis
+- Performance optimization suggestions
+
+### 3. Security Implementation
+- Role-based access control:
+  - Candidates: Full security measures
+  - Recruiters: Read-only access
+- Secure WebSocket connections
+- Media stream encryption (candidate only)
+- Anti-cheating measures (candidate only)
+- Violation detection system (candidate only)
+
+### 4. Real-time Collaboration
+- WebSocket-based state synchronization
+- Conflict resolution
+- Real-time updates
+- Session management
+- Role-specific features:
+  - Candidates: Full interaction
+  - Recruiters: Observation only
+
+## Benefits
+
+### For Recruiters
+1. **Efficient Evaluation**
+   - Automated test case validation
+   - AI-powered code analysis
+   - Plagiarism detection
+   - Comprehensive candidate assessment
+   - No setup required for observation
+
+2. **Enhanced Monitoring**
+   - Real-time candidate activity tracking
+   - Secure screen sharing observation
+   - Violation detection alerts
+   - Interview recording
+   - Instant access to interview room
+
+3. **Better Decision Making**
+   - AI-generated insights
+   - Performance metrics
+   - Code quality analysis
+   - Comprehensive feedback
+   - Unrestricted observation capabilities
+
+### For Candidates
+1. **Fair Assessment**
+   - Standardized evaluation
+   - Clear feedback
+   - Multiple language support
+   - Real-time results
+   - Secure environment
+
+2. **Better Experience**
+   - Familiar development environment
+   - Real-time feedback
+   - Clear instructions
+   - Technical support
+   - Focused interview environment
+
+## Project Structure
+```
+├── Frontend/
+│   ├── src/
+│   │   ├── components/     # Reusable UI components
+│   │   ├── pages/         # Main application pages
+│   │   ├── services/      # API and business logic
+│   │   ├── contexts/      # React context providers
+│   │   └── types/         # TypeScript type definitions
+│   └── public/            # Static assets
+│
+├── Backend/
+│   ├── src/
+│   │   ├── routes/        # API endpoints
+│   │   ├── services/      # Business logic
+│   │   ├── models/        # Database models
+│   │   └── utils/         # Helper functions
+│   └── prisma/            # Database schema
+│
+└── Docker/                # Container configurations
+```
+
+## Getting Started
+1. Clone the repository
+2. Install dependencies (Frontend & Backend)
+3. Set up environment variables
+4. Initialize the database
+5. Start the development servers
+
+## Contributing
+Please read our contributing guidelines before submitting pull requests.
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+
+

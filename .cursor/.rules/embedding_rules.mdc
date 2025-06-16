@@ -1,0 +1,58 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# Code Embedding Rules
+
+## Model Configuration
+- **Model**: text-embedding-3-small
+- **Dimensions**: 1536
+- **Chunk Size**: 8192 tokens
+- **Similarity Metric**: Cosine similarity
+- **Index Type**: IVFFlat
+- **Index Parameters**: 
+  - Lists: 100
+
+## Content Types
+### Code Snapshot
+- **Fields to Embed**:
+  - Code content
+  - Programming language
+- **Preprocessing Rules**:
+  - Remove comments
+  - Normalize whitespace
+  - Preserve code structure
+
+## Storage Configuration
+### Table: code_embeddings
+- **Columns**:
+  - id: SERIAL PRIMARY KEY
+  - code_snapshot_id: TEXT NOT NULL
+  - interview_id: TEXT NOT NULL
+  - embedding: vector(1536)
+  - created_at: TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+
+### Indexes
+1. **Vector Index**:
+   - Name: code_embeddings_vector_idx
+   - Type: ivfflat
+   - Column: embedding
+   - Parameters: lists = 100
+
+2. **Snapshot Index**:
+   - Name: code_embeddings_snapshot_idx
+   - Type: btree
+   - Column: code_snapshot_id
+   - Unique: true
+
+## Search Parameters
+- Default result limit: 5
+- Minimum similarity threshold: 0.7
+- Maximum results per search: 10
+
+## Implementation Notes
+1. Embeddings should be generated asynchronously after code snapshot creation
+2. Main application flow should not be blocked by embedding generation
+
+

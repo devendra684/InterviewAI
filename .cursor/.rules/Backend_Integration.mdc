@@ -1,0 +1,690 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Backend Integration Guide for InterviewAI
+
+This guide explains how to integrate your Prisma/PostgreSQL backend and OpenAI features into the InterviewAI application.
+
+## Table of Contents
+1. [Prerequisites](mdc:#prerequisites)
+2. [Database Schema](mdc:#database-schema)
+3. [API Endpoints](mdc:#api-endpoints)
+4. [Frontend Integration Points](mdc:#frontend-integration-points)
+5. [OpenAI Integration](mdc:#openai-integration)
+6. [Environment Variables](mdc:#environment-variables)
+7. [Authentication Flow](mdc:#authentication-flow)
+8. [Code Changes Required](mdc:#code-changes-required)
+
+## Prerequisites
+
+- Node.js backend with Express/Fastify
+- Prisma ORM configured
+- PostgreSQL database
+- OpenAI API access
+- JWT for authentication
+
+## Database Schema
+
+### Required Prisma Models
+
+```prisma
+// schema.prisma
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      UserRole @default(CANDIDATE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  interviews     Interview[] @relation("InterviewerInterviews")
+  candidateInterviews Interview[] @relation("CandidateInterviews")
+  feedbacks      Feedback[]
+  notes          InterviewNote[]
+
+  @@map("users")
+}
+
+model Interview {
+  id          String          @id @default(cuid())
+  title       String
+  company     String
+  description String?
+  status      InterviewStatus @default(SCHEDULED)
+  duration    Int             @default(3600) // seconds
+  startTime   DateTime?
+  endTime     DateTime?
+  joinCode    String          @unique
+  
+  // Relations
+  interviewerId String
+  candidateId   String?
+  interviewer   User     @relation("InterviewerInterviews", fields: [interviewerId], references: [id])
+  candidate     User?    @relation("CandidateInterviews", fields: [candidateId], references: [id])
+  
+  codeSnapshots CodeSnapshot[]
+  feedback      Feedback?
+  notes         InterviewNote[]
+  violations    Violation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("interviews")
+}
+
+model CodeSnapshot {
+  id          String @id @default(cuid())
+  filename    String
+  language    String
+  code        String @db.Text
+  timestamp   DateTime @default(now())
+  
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@map("code_snapshots")
+}
+
+model Feedback {
+  id                    String @id @default(cuid())
+  overallScore          Int
+  codeQuality           Int
+  problemSolving        Int
+  technicalSkills       Int
+  strengths             String[] @db.Text
+  areasForImprovement   String[] @db.Text
+  codeFeedbackSummary   String   @db.Text
+  detailedFeedback      String   @db.Text
+  nextSteps             String   @db.Text
+  
+  interviewId String    @unique
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  
+  createdAt   DateTime  @default(now())
+
+  @@map("feedback")
+}
+
+model InterviewNote {
+  id      String @id @default(cuid())
+  content String @db.Text
+  timestamp DateTime @default(now())
+  
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User   @relation(fields: [userId], references: [id])
+
+  @@map("interview_notes")
+}
+
+model Violation {
+  id          String        @id @default(cuid())
+  type        ViolationType
+  description String
+  timestamp   DateTime      @default(now())
+  
+  interviewId String
+  interview   Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+
+  @@map("violations")
+}
+
+enum UserRole {
+  ADMIN
+  RECRUITER
+  CANDIDATE
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum ViolationType {
+  WINDOW_BLUR
+  TAB_SWITCH
+  COPY_PASTE
+  EXTERNAL_RESOURCE
+}
+```
+
+## API Endpoints
+
+### Authentication Endpoints
+
+```typescript
+// Base URL: /api/auth
+POST /register     // User registration
+POST /login        // User login
+POST /logout       // User logout
+GET  /me          // Get current user
+POST /refresh     // Refresh JWT token
+```
+
+### Interview Management
+
+```typescript
+// Base URL: /api/interviews
+GET    /                    // Get all interviews for user
+POST   /                    // Create new interview
+GET    /:id                 // Get specific interview
+PUT    /:id                 // Update interview
+DELETE /:id                 // Delete interview
+POST   /:id/start          // Start interview
+POST   /:id/end            // End interview
+GET    /:id/join/:joinCode // Join interview with code
+POST   /:id/violations     // Report violation
+```
+
+### Code Management
+
+```typescript
+// Base URL: /api/interviews/:id/code
+GET    /           // Get all code snapshots
+POST   /save       // Save code snapshot
+GET    /latest     // Get latest code snapshot
+```
+
+### Feedback & Notes
+
+```typescript
+// Base URL: /api/interviews/:id
+POST   /feedback   // Generate and save feedback
+GET    /feedback   // Get feedback
+POST   /notes      // Save note
+GET    /notes      // Get all notes
+```
+
+### AI Features
+
+```typescript
+// Base URL: /api/ai
+POST /generate-feedback    // Generate AI feedback
+POST /analyze-code        // Analyze code quality
+POST /generate-questions  // Generate interview questions
+POST /update-feedback     // Update existing feedback
+```
+
+## Frontend Integration Points
+
+### 1. Authentication Pages
+
+**Files to modify:**
+- `src/pages/Login.tsx`
+- `src/pages/Register.tsx`
+
+**Changes needed:**
+```typescript
+// Replace mock authentication with real API calls
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setIsLoading(true);
+  
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      // Store JWT token
+      localStorage.setItem('token', data.token);
+      navigate('/dashboard');
+    } else {
+      setError(data.message);
+    }
+  } catch (error) {
+    setError('Network error occurred');
+  } finally {
+    setIsLoading(false);
+  }
+};
+```
+
+### 2. Dashboard Integration
+
+**File to modify:**
+- `src/pages/Dashboard.tsx`
+
+**API Integration:**
+```typescript
+// Fetch real interviews data
+useEffect(() => {
+  const fetchInterviews = async () => {
+    try {
+      const response = await fetch('/api/interviews', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      setInterviews(data);
+    } catch (error) {
+      console.error('Failed to fetch interviews:', error);
+    }
+  };
+  
+  fetchInterviews();
+}, []);
+```
+
+### 3. Interview Room Integration
+
+**File to modify:**
+- `src/pages/Interview.tsx`
+
+**Key integration points:**
+
+```typescript
+// Auto-save code functionality
+const handleSaveCode = async () => {
+  try {
+    await fetch(`/api/interviews/${id}/code/save`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        filename: currentTab,
+        language: currentTabData?.language,
+        code: currentTabData?.code
+      })
+    });
+    
+    toast({
+      title: "Code Saved",
+      description: "Your code has been saved successfully.",
+    });
+  } catch (error) {
+    toast({
+      title: "Save Failed",
+      description: "Failed to save code. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
+
+// Violation tracking
+const handleWindowBlur = async () => {
+  try {
+    await fetch(`/api/interviews/${id}/violations`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        type: 'WINDOW_BLUR',
+        description: 'Candidate lost window focus'
+      })
+    });
+  } catch (error) {
+    console.error('Failed to log violation:', error);
+  }
+};
+
+// End interview with AI feedback generation
+const handleEndInterview = async () => {
+  try {
+    // End interview
+    await fetch(`/api/interviews/${id}/end`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    // Generate AI feedback
+    await fetch(`/api/interviews/${id}/feedback`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    // Navigate based on role
+    if (userRole === "candidate") {
+      navigate(`/feedback/${id}`);
+    } else {
+      navigate(`/interview/${id}/report`);
+    }
+  } catch (error) {
+    console.error('Failed to end interview:', error);
+  }
+};
+```
+
+### 4. Feedback Integration
+
+**File to modify:**
+- `src/pages/CandidateFeedback.tsx`
+
+**Updated feedback fetching:**
+```typescript
+useEffect(() => {
+  const fetchFeedback = async () => {
+    try {
+      const response = await fetch(`/api/interviews/${id}/feedback`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await response.json();
+      
+      // Ensure we have all required feedback fields
+      if (!data.strengths?.length || !data.areasForImprovement?.length) {
+        // Trigger feedback regeneration if missing required fields
+        await fetch(`/api/interviews/${id}/feedback/regenerate`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        // Fetch updated feedback
+        const updatedResponse = await fetch(`/api/interviews/${id}/feedback`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        setFeedback(await updatedResponse.json());
+      } else {
+        setFeedback(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch feedback:', error);
+      setError('Failed to load feedback data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  fetchFeedback();
+}, [id]);
+```
+
+### 5. Join Interview Integration
+
+**File to modify:**
+- `src/pages/JoinInterview.tsx`
+
+**API Integration:**
+```typescript
+const handleJoinInterview = async () => {
+  try {
+    const response = await fetch(`/api/interviews/join/${joinCode}`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      navigate(`/interview/${data.interviewId}?role=candidate`);
+    } else {
+      setError(data.message);
+    }
+  } catch (error) {
+    setError('Failed to join interview');
+  }
+};
+```
+
+## OpenAI Integration
+
+### Backend AI Service
+
+```typescript
+// services/aiService.ts
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+export class AIService {
+  static async generateFeedback(interviewData: {
+    code: string;
+    duration: number;
+    violations: Violation[];
+    notes: string[];
+  }) {
+    const prompt = `
+    Analyze this coding interview performance:
+    
+    Code Quality: ${interviewData.code}
+    Interview Duration: ${interviewData.duration} seconds
+    Violations: ${interviewData.violations.length}
+    Notes: ${interviewData.notes.join(', ')}
+    
+    Provide detailed feedback including:
+    1. Overall score (0-100)
+    2. Individual scores for:
+       - Code quality (0-100)
+       - Problem solving (0-100)
+       - Technical skills (0-100)
+    3. Strengths (array of specific, actionable points)
+    4. Areas for improvement (array of specific, actionable points)
+    5. Code feedback summary (detailed analysis of code structure, patterns, and practices)
+    6. Detailed feedback paragraph
+    7. Next steps recommendation
+    
+    Return as JSON format with all fields properly populated.
+    Ensure strengths and areas for improvement are never empty arrays.
+    `;
+    
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.7,
+      max_tokens: 2000,  // Increased for more detailed feedback
+    });
+    
+    return JSON.parse(response.choices[0].message.content);
+  }
+  
+  static async analyzeCode(code: string, language: string) {
+    const prompt = `
+    Analyze this ${language} code for:
+    1. Code quality and structure
+    2. Best practices and patterns
+    3. Performance considerations
+    4. Technical skill demonstration
+    5. Problem-solving approach
+    
+    Code: ${code}
+    
+    Provide a comprehensive analysis including:
+    1. Overall code quality score
+    2. Specific strengths in the implementation
+    3. Areas that could be improved
+    4. Detailed code feedback summary
+    
+    Return as JSON with all fields properly populated.
+    Ensure no empty arrays in the response.
+    `;
+    
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 1500,  // Increased for detailed analysis
+    });
+    
+    return JSON.parse(response.choices[0].message.content);
+  }
+}
+```
+
+## Environment Variables
+
+Create a `.env` file in your backend:
+
+```env
+# Database
+DATABASE_URL="postgresql://username:password@localhost:5432/interviewai"
+
+# JWT
+JWT_SECRET="your-super-secret-jwt-key"
+JWT_EXPIRES_IN="7d"
+
+# OpenAI
+OPENAI_API_KEY="sk-your-openai-api-key"
+
+# App
+PORT=3001
+NODE_ENV="development"
+
+# CORS (for frontend)
+FRONTEND_URL="http://localhost:5173"
+```
+
+## Authentication Flow
+
+### JWT Token Management
+
+Create an auth context for the frontend:
+
+```typescript
+// src/contexts/AuthContext.tsx
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  
+  // Add token to all API requests
+  axios.defaults.headers.common['Authorization'] = token ? `Bearer ${token}` : '';
+  
+  const login = async (email, password) => {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok) {
+      setToken(data.token);
+      setUser(data.user);
+      localStorage.setItem('token', data.token);
+    }
+    
+    return data;
+  };
+  
+  return (
+    <AuthContext.Provider value={{ user, token, login }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+```
+
+## Code Changes Required
+
+### 1. Update App.tsx
+
+Wrap with AuthProvider:
+```typescript
+import { AuthProvider } from './contexts/AuthContext';
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <AuthProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
+            <Route path="/" element={<Index />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/interview/:id" element={<Interview />} />
+            <Route path="/interview/:id/report" element={<AIReport />} />
+            <Route path="/join" element={<JoinInterview />} />
+            <Route path="/feedback/:id" element={<CandidateFeedback />} />
+            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </BrowserRouter>
+      </TooltipProvider>
+    </AuthProvider>
+  </QueryClientProvider>
+);
+```
+
+### 2. Create API utility
+
+```typescript
+// src/lib/api.ts
+const API_BASE = process.env.NODE_ENV === 'production' 
+  ? 'https://your-backend.com/api' 
+  : 'http://localhost:3001/api';
+
+export const api = {
+  get: (endpoint: string) => 
+    fetch(`${API_BASE}${endpoint}`, {
+      headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+    }),
+    
+  post: (endpoint: string, data: any) =>
+    fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      },
+      body: JSON.stringify(data)
+    })
+};
+```
+
+### 3. WebSocket Integration
+
+For real-time features:
+```typescript
+// src/hooks/useWebSocket.ts
+export const useWebSocket = (interviewId: string) => {
+  const [socket, setSocket] = useState<WebSocket | null>(null);
+  
+  useEffect(() => {
+    const ws = new WebSocket(`ws://localhost:3001/interviews/${interviewId}`);
+    setSocket(ws);
+    
+    return () => ws.close();
+  }, [interviewId]);
+  
+  return socket;
+};
+```
+
+## Deployment Considerations
+
+1. **Database**: Deploy PostgreSQL (recommended: Railway, Supabase, or AWS RDS)
+2. **Backend**: Deploy to Vercel, Railway, or AWS
+3. **Frontend**: Already deployed via Lovable
+4. **Environment Variables**: Set in your deployment platform
+
+## Testing the Integration
+
+1. Start with authentication endpoints
+2. Test interview CRUD operations
+3. Implement real-time code saving
+4. Test AI feedback generation
+5. Verify violation tracking
+6. Test end-to-end interview flow
+
+## Support
+
+- Check backend logs for API errors
+- Use browser network tab to debug requests
+- Implement proper error boundaries in React
+- Add comprehensive logging throughout the application
+
+This guide provides the foundation for integrating your backend. Start with authentication, then gradually implement each feature while testing thoroughly.
+

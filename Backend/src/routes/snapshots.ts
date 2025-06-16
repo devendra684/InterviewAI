@@ -1,6 +1,7 @@
 import express from "express";
 import { PrismaClient } from "@prisma/client";
 import { authenticateJWT } from "../middleware/auth.js";
+import { CodeEmbeddingService } from "../services/codeEmbeddingService.js";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -44,6 +45,19 @@ router.post("/:id/snapshot", authenticateJWT, async (req: express.Request, res: 
         transcript: JSON.stringify(enhancedTranscript)
       }
     });
+
+    // Generate and store embedding asynchronously
+    // This won't block the response or affect the main flow
+    CodeEmbeddingService.storeCodeEmbedding(snapshot.id, interviewId, code, language)
+      .then(result => {
+        if (!result.success) {
+          console.error('Failed to store code embedding:', result.error);
+        }
+      })
+      .catch(error => {
+        console.error('Error in embedding generation:', error);
+      });
+
     res.status(201).json(snapshot);
     return;
   } catch (err: unknown) {
@@ -104,6 +118,58 @@ router.get("/:id/snapshot/latest", authenticateJWT, async (req: express.Request,
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
     res.status(500).json({ message: "Failed to fetch latest snapshot", error: errorMessage });
+    return;
+  }
+});
+
+// Find similar code snippets
+router.post("/:id/similar-code", authenticateJWT, async (req: express.Request, res: express.Response): Promise<void> => {
+  const { id: interviewId } = req.params;
+  const { code, language, limit } = req.body;
+  const userId = req.user?.id;
+
+  if (!userId) { res.status(401).json({ message: "Unauthorized" }); return; }
+
+  try {
+    // Check interview access
+    const interview = await prisma.interview.findUnique({ where: { id: interviewId } });
+    if (!interview) { res.status(404).json({ message: "Interview not found" }); return; }
+    if (interview.interviewerId !== userId && interview.candidateId !== userId) {
+      res.status(403).json({ message: "Access denied" });
+      return;
+    }
+
+    // Find similar code
+    const similarCode = await CodeEmbeddingService.findSimilarCode(
+      code,
+      language,
+      limit || 5,
+      interviewId
+    );
+
+    // Get the full snapshots for the similar code
+    const snapshots = await prisma.codeSnapshot.findMany({
+      where: {
+        id: {
+          in: similarCode.map(item => item.codeSnapshotId)
+        }
+      },
+      orderBy: {
+        timestamp: 'desc'
+      }
+    });
+
+    // Combine similarity scores with snapshots
+    const results = snapshots.map(snapshot => ({
+      ...snapshot,
+      similarity: similarCode.find(item => item.codeSnapshotId === snapshot.id)?.similarity || 0
+    }));
+
+    res.json(results);
+    return;
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : "Unknown error occurred";
+    res.status(500).json({ message: "Failed to find similar code", error: errorMessage });
     return;
   }
 });

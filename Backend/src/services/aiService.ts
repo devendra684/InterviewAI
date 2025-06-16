@@ -1,6 +1,13 @@
-import OpenAI from 'openai';
-import { TestResult } from './codeExecutionService';
+import { OpenAI } from 'openai';
 
+interface TestResult {
+  testCase: number;
+  passed: boolean;
+  output?: string;
+  error?: string;
+}
+
+// Service for AI-powered code analysis and feedback using OpenAI
 export class AIService {
   private openai: OpenAI;
 
@@ -9,6 +16,7 @@ export class AIService {
     this.openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   }
 
+  // Analyze code and test results, return suggestions and potential bugs using OpenAI
   async analyzeCode(
     code: string,
     language: string,
@@ -24,10 +32,12 @@ export class AIService {
   }> {
     console.log(`Analyzing code in ${language} with ${testResults.length} test results.`);
 
+    // Prepare a summary of test results for the AI prompt
     const testResultsSummary = testResults.map(tr => 
       `Test Case ${tr.testCase}: ${tr.passed ? 'PASSED' : 'FAILED'} - Output: ${tr.output || 'N/A'} - Error: ${tr.error || 'N/A'}`
     ).join('\n');
 
+    // Construct the prompt for OpenAI
     const prompt = `You are an expert code analyst. Analyze the following code, its language, the problem it attempts to solve, and its test results and always use 'Input' as the variable name to receive input values from test cases. Provide suggestions for improvement, identify potential bugs.
 
 Problem Title: ${problemDetails.problemTitle}
@@ -37,14 +47,14 @@ Problem Difficulty: ${problemDetails.difficulty}
 Language: ${language}
 
 Code:
-\`\`\`${language}
+\${language}
 ${code}
-\`\`\`
+\
 
 Test Results:
 ${testResultsSummary}
 
-Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each, and each point must be a single line (no line breaks or multi-line explanations):
+Provide your analysis as a JSON object with the following structure. For array fields (suggestions, potentialBugs), provide exactly 2 very concise points each, and each point must be a short and single line (no line breaks or multi-line explanations):
 {
   "suggestions": [
     "string"
@@ -56,6 +66,7 @@ Provide your analysis as a JSON object with the following structure. For array f
 If no relevant data, use empty arrays.`;
 
     try {
+      // Call OpenAI API for code analysis
       const response = await this.openai.chat.completions.create({
         model: "gpt-4", // Or a suitable model like gpt-3.5-turbo
         messages: [{ role: "user", content: prompt }],
@@ -93,6 +104,7 @@ If no relevant data, use empty arrays.`;
     }
   }
 
+  // Provide feedback for a failed test case using OpenAI
   async provideFeedback(
     code: string,
     language: string,
@@ -102,9 +114,11 @@ If no relevant data, use empty arrays.`;
   ): Promise<any> {
     console.log(`Providing feedback for code in ${language}.`);
     
-    const prompt = `The following code in ${language} was expected to produce output: \"${expectedOutput}\" but instead produced: \"${actualOutput}\". The code is: \n\`\`\`${language}\n${code}\n\`\`\`\nExplain why the test failed and provide exactly 2 very concise, actionable guidance points on how to fix it, using short sentences.`;
+    // Construct the prompt for OpenAI
+    const prompt = `The following code in ${language} was expected to produce output: \"${expectedOutput}\" but instead produced: \"${actualOutput}\". The code is: \n\${language}\n${code}\n\\nExplain why the test failed and provide exactly 2 very concise, actionable guidance points on how to fix it, using short sentences.`;
 
     try {
+      // Call OpenAI API for feedback
       const response = await this.openai.chat.completions.create({
         model: "gpt-4", 
         messages: [{ role: "user", content: prompt }],
@@ -125,4 +139,4 @@ If no relevant data, use empty arrays.`;
       };
     }
   }
-} 
+}

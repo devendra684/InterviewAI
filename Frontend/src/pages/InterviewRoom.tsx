@@ -1,3 +1,7 @@
+// Main component for the interview room
+// Handles code execution, test cases, and real-time collaboration between interviewer and candidate
+
+// Import necessary components and utilities
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
@@ -27,6 +31,7 @@ import {
 } from "lucide-react";
 import CodeEditor from "@/components/CodeEditor";
 import TestCases from "@/components/TestCases";
+import { TestCase } from "@/types/interview";
 import CandidateNotes from "@/components/CandidateNotes";
 import { useAuth } from "@/contexts/AuthContext";
 import html2canvas from 'html2canvas';
@@ -38,17 +43,12 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+// Define interfaces for user, question, and interview data
 interface User {
   id: string;
   email: string;
   name: string;
   role: string;
-}
-
-interface TestCase {
-  id?: string;
-  input: string;
-  expectedOutput: string;
 }
 
 interface Question {
@@ -79,7 +79,7 @@ const Interview = () => {
   const { toast } = useToast();
   const { user, loading, token } = useAuth();
 
-  // State declarations
+  // State declarations for interview data, code, test results, and UI controls
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [interview, setInterview] = useState<Interview | null>(null);
   const [loadingInterview, setLoadingInterview] = useState(true);
@@ -89,7 +89,14 @@ const Interview = () => {
   const [timeLimit, setTimeLimit] = useState(3600); // 60 minutes
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [testResults, setTestResults] = useState<any[]>([]);
-  const [code, setCode] = useState("// Always use the variable \`Input\` to receive input values from test cases.\\n// Example: Input = [1, 2, 3] or Input = ['abc', 'xyz']\\n\\nfunction solve(Input) {\\n  // Your code here\\n  return result;\\n}");
+  const defaultCode = `//Always use the variable \`Input\` to receive input values from test cases.
+//Example: Input = [1, 2, 3] or Input = ['abc', 'xyz']
+
+function solve(Input) {
+    // Your code here
+    return result;
+}`;
+  const [code, setCode] = useState(defaultCode);
   const [notes, setNotes] = useState("No notes were provided by the candidate.");
   const [selectedLanguage, setSelectedLanguage] = useState<string>("javascript");
   const [aiInsightsResult, setAiInsightsResult] = useState<{
@@ -114,7 +121,7 @@ const Interview = () => {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [showFullscreenModal, setShowFullscreenModal] = useState(false);
 
-  // Ref declarations
+  // Ref declarations for DOM elements and timers
   const localStreamRef = useRef<HTMLVideoElement>(null);
   const screenVideoRef = useRef<HTMLVideoElement>(null);
   const violationTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -131,7 +138,46 @@ const Interview = () => {
 
   let screenshotIntervalId: NodeJS.Timeout | null = null;
 
-  // Callback functions
+  // Callback functions for handling interview submission, code changes, and other actions
+  const stopAllMediaStreams = useCallback(() => {
+    // Stop screen sharing
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+      setScreenStream(null);
+      setIsScreenSharing(false);
+    }
+
+    // Clear screen video element
+    if (screenVideoRef.current) {
+      screenVideoRef.current.srcObject = null;
+      screenVideoRef.current.pause();
+    }
+
+    // Stop local video/audio stream
+    if (localStreamRef.current && localStreamRef.current.srcObject) {
+      const stream = localStreamRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => {
+        track.stop();
+        track.enabled = false;
+      });
+      localStreamRef.current.srcObject = null;
+      localStreamRef.current.pause();
+    }
+
+    // Reset media states
+    setIsVideoEnabled(false);
+    setIsAudioEnabled(false);
+
+    // Clear any screenshot intervals
+    if (screenshotIntervalId) {
+      clearInterval(screenshotIntervalId);
+      screenshotIntervalId = null;
+    }
+  }, [screenStream]);
+
   const handleSubmitInterview = useCallback(async () => {
     if (!id || !token || !user) {
       toast({
@@ -144,6 +190,9 @@ const Interview = () => {
 
     setIsSubmitting(true);
     try {
+      // Stop all media streams before submitting
+      stopAllMediaStreams();
+
       console.log("Submitting interview with notes:", notes);
       console.log("Current code:", code);
       console.log("Test results:", testResults);
@@ -235,6 +284,7 @@ const Interview = () => {
     }
   }, [id, token, user, toast, navigate, selectedLanguage, code, notes, testResults]);
 
+  // Functions for handling code and notes updates
   const sendCodeUpdate = useCallback((newCode: string) => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ type: 'code_update', interviewId: id, code: newCode }));
@@ -364,6 +414,7 @@ const Interview = () => {
     }
   };
 
+  // Functions for handling media permissions and screen sharing
   const handleGrantPermissions = async () => {
     try {
       // First request camera and microphone permissions
@@ -507,6 +558,7 @@ const Interview = () => {
     }
   };
 
+  // Functions for handling screenshots
   const takeAndUploadScreenshot = async () => {
     console.log('Attempting to take screenshot...');
     try {
@@ -585,6 +637,38 @@ const Interview = () => {
     };
   }, [isScreenSharing]);
 
+  const handleVisibilityChange = useCallback(() => {
+    if (document.hidden) {
+      const newViolationCount = violationCount + 1;
+      setViolationCount(newViolationCount);
+     
+      // Show toast notification
+      toast({
+        title: "Warning: Window Switch Detected",
+        description: `Switching windows or tabs is not allowed. This is violation ${newViolationCount} of 3. Your submission will be automatically submitted after 3 violations.`,
+        variant: "destructive",
+      });
+
+      if (newViolationCount >= 3) {
+        // Auto-submit immediately after 3rd violation
+        toast({
+          title: "Interview Ended",
+          description: "Your interview has been automatically submitted due to multiple window switches.",
+          variant: "destructive",
+        });
+        handleSubmitInterview();
+      }
+    }
+  }, [violationCount, handleSubmitInterview, toast]);
+
+  // Add useEffect for visibility change detection
+  useEffect(() => {
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [handleVisibilityChange]);
+
   // Render loading state early
   if (loading) {
     return (
@@ -594,7 +678,7 @@ const Interview = () => {
     );
   }
 
-  // useEffect hooks
+  // Effect hooks for managing media streams, WebSocket connections, and timers
   useEffect(() => {
     const getMedia = async () => {
       try {
@@ -711,12 +795,24 @@ const Interview = () => {
         }
 
         const data = await response.json();
+        // Patch: Ensure all testCases have 'hidden' property
+        if (data.questions && Array.isArray(data.questions)) {
+          data.questions = data.questions.map((q: any) => ({
+            ...q,
+            testCases: Array.isArray(q.testCases)
+              ? q.testCases.map((tc: any) => ({
+                  ...tc,
+                  hidden: typeof tc.hidden === 'boolean' ? tc.hidden : false
+                }))
+              : []
+          }));
+        }
         setInterview(data);
         setTimeLimit(data.duration);
         
         if (data.questions && data.questions.length > 0) {
           setCurrentProblem(0);
-          setCode(data.questions[0].initialCode || "// Always use the variable \`Input\` to receive input values from test cases.\\n// Example: Input = [1, 2, 3] or Input = ['abc', 'xyz']\\n\\nfunction solve(Input) {\\n  // Your code here\\n  return result;\\n}");
+          setCode(data.questions[0].initialCode || defaultCode);
         }
       } catch (err) {
         console.error('Error fetching interview:', err);

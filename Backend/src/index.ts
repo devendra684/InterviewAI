@@ -3,32 +3,70 @@ import cors from "cors";
 import dotenv from "dotenv";
 import { createServer } from "http";
 import { WebSocket, WebSocketServer } from 'ws';
-import { setupWebSocket } from "./websocket.ts";
-import apiRouter from "./routes/index.ts";
-import prisma from "./lib/prisma.ts";
+import { setupWebSocket } from "./websocket";
+import apiRouter from "./routes/index";
+import prisma from "./lib/prisma";
+import { initializeVectorDb, testVectorDbConnection } from "./lib/vectorDb";
+import { testOpenAIConnection } from "./lib/openai";
 
+// Load environment variables from .env file
 dotenv.config();
 
+// Create Express app and HTTP server
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+const server = createServer(app);
+
+// --- Service Initialization ---
+// Initialize vector database and test connections to required services
+async function initializeServices() {
+  try {
+    // Initialize vector database (for code embeddings)
+    await initializeVectorDb();
+    
+    // Test vector database connection
+    const isVectorDbConnected = await testVectorDbConnection();
+    if (!isVectorDbConnected) {
+      throw new Error('Failed to connect to vector database');
+    }
+    
+    // Test OpenAI connection (for AI-powered features)
+    const isOpenAIConnected = await testOpenAIConnection();
+    if (!isOpenAIConnected) {
+      throw new Error('Failed to connect to OpenAI');
+    }
+    
+    console.log('All services initialized successfully');
+  } catch (error) {
+    console.error('Service initialization failed:', error);
+    process.exit(1);
+  }
+}
+
+// Start service initialization
+initializeServices();
+
+// --- Health Check Endpoint ---
 app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
-// API routes
+// --- API Routes ---
 app.use("/api", apiRouter);
 
-const server = createServer(app);
+// --- WebSocket Server Setup ---
 const wss = new WebSocketServer({ server });
 
-const interviewRooms = new Map<string, WebSocket[]>(); // Map to store WebSockets for each interview room
+// Map to store WebSockets for each interview room
+const interviewRooms = new Map<string, WebSocket[]>();
 
+// Handle new WebSocket connections
 wss.on("connection", (ws: WebSocket, req: Request) => {
   console.log("New WebSocket connection");
 
-  // Handle messages
+  // Handle incoming messages from clients
   ws.on("message", (message: Buffer) => {
     try {
       const data = JSON.parse(message.toString());
@@ -50,12 +88,13 @@ wss.on("connection", (ws: WebSocket, req: Request) => {
     }
   });
 
-  // Handle disconnection
+  // Handle client disconnection
   ws.on("close", () => {
     console.log("Client disconnected");
   });
 });
 
+// --- Start the HTTP and WebSocket server ---
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

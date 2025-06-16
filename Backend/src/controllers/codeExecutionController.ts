@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { CodeExecutionService } from '../services/codeExecutionService.js';
 
+// Controller for handling code execution API requests
 export class CodeExecutionController {
   private codeExecutionService: CodeExecutionService;
 
@@ -8,8 +9,12 @@ export class CodeExecutionController {
     this.codeExecutionService = new CodeExecutionService();
   }
 
+  // Handle POST /code-execution/execute
+  // Receives code, language, test cases, and problem details from the client
+  // Runs code execution, collects results, and returns them to the client
   executeCode = async (req: Request, res: Response): Promise<void> => {
     try {
+      // Log incoming request details
       console.log('Received code execution request:', {
         language: req.body.language,
         problemId: req.body.problemId,
@@ -17,6 +22,7 @@ export class CodeExecutionController {
         testCasesCount: req.body.testCases?.length
       });
 
+      // Extract required fields from request body
       const { 
         code, 
         language, 
@@ -26,6 +32,7 @@ export class CodeExecutionController {
         problemDetails 
       } = req.body;
 
+      // Validate required fields
       if (!code || !language || !testCases || !interviewId || !problemDetails) {
         console.error('Missing required fields:', { 
           code: !!code, 
@@ -47,6 +54,7 @@ export class CodeExecutionController {
         return;
       }
 
+      // Run code execution and get results
       const result = await this.codeExecutionService.executeCode(
         code,
         language,
@@ -56,6 +64,7 @@ export class CodeExecutionController {
         problemDetails
       );
 
+      // Log and return the result
       console.log('Code execution result:', {
         message: result.message,
         testResultsCount: result.testResults.length
@@ -63,6 +72,7 @@ export class CodeExecutionController {
 
       res.json(result);
     } catch (error) {
+      // Handle unexpected errors
       console.error('Error in executeCode controller:', error);
       res.status(500).json({
         error: 'Internal server error during code execution',

@@ -1,3 +1,4 @@
+// Frontend service for executing code and handling test case results
 import { TestCase } from '../types/interview';
 
 interface CodeExecutionResult {
@@ -25,6 +26,7 @@ export class CodeExecutionService {
     console.log('CodeExecutionService initialized with baseUrl:', this.baseUrl);
   }
 
+  // Execute code and run test cases, returning results and AI insights
   async executeCode(
     code: string,
     language: string,
@@ -47,6 +49,7 @@ export class CodeExecutionService {
         codeLength: code.length
       });
 
+      // Send code execution request to the backend
       const response = await fetch(`${this.baseUrl}/code-execution/execute`, {
         method: 'POST',
         headers: {

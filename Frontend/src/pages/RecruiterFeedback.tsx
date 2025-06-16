@@ -82,10 +82,14 @@ const RecruiterFeedback = () => {
   const [screenshots, setScreenshots] = useState<{ filename: string; url: string }[]>([]);
   const [screenshotsLoading, setScreenshotsLoading] = useState(true);
 
+  // Plagiarism analysis state
+  const [plagiarism, setPlagiarism] = useState<any>(null);
+  const [plagiarismLoading, setPlagiarismLoading] = useState(true);
+  const [plagiarismError, setPlagiarismError] = useState<string | null>(null);
+
   useEffect(() => {
     const fetchFeedback = async () => {
       if (!id) return;
-
       try {
         setLoading(true);
         setError(null);
@@ -95,19 +99,15 @@ const RecruiterFeedback = () => {
             Authorization: `Bearer ${token}`,
           },
         });
-
         if (response.status === 404 && retryCount < 3) {
-          // If feedback is not ready, retry after 5 seconds
           setTimeout(() => {
             setRetryCount(prev => prev + 1);
           }, 5000);
           return;
         }
-
         if (!response.ok) {
           throw new Error("Failed to fetch feedback");
         }
-
         const data = await response.json();
         setFeedback(data);
       } catch (err) {
@@ -116,9 +116,31 @@ const RecruiterFeedback = () => {
         setLoading(false);
       }
     };
-
     fetchFeedback();
   }, [id, retryCount]);
+
+  // Fetch plagiarism analysis
+  useEffect(() => {
+    if (!id) return;
+    const fetchPlagiarism = async () => {
+      setPlagiarismLoading(true);
+      setPlagiarismError(null);
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch(`/api/interviews/${id}/plagiarism`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) throw new Error("Failed to fetch plagiarism analysis");
+        const data = await response.json();
+        setPlagiarism(data);
+      } catch (err) {
+        setPlagiarismError(err instanceof Error ? err.message : "Failed to load plagiarism analysis");
+      } finally {
+        setPlagiarismLoading(false);
+      }
+    };
+    fetchPlagiarism();
+  }, [id]);
 
   useEffect(() => {
     const fetchScreenshots = async () => {
@@ -202,6 +224,16 @@ const RecruiterFeedback = () => {
   const problemSolvingScore = feedback.performance?.problemSolving ?? 0;
   const technicalSkillScore = feedback.performance?.technicalSkill ?? 0;
   const overallScore = Math.round((codeQualityScore + problemSolvingScore + technicalSkillScore) / 3);
+
+  // Helper for risk badge color
+  const getRiskBadgeClass = (risk: string) => {
+    switch (risk) {
+      case "low": return "bg-green-500 hover:bg-green-600 text-white";
+      case "medium": return "bg-yellow-500 hover:bg-yellow-600 text-white";
+      case "high": return "bg-red-500 hover:bg-red-600 text-white";
+      default: return "bg-gray-300 text-gray-800";
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -415,37 +447,51 @@ const RecruiterFeedback = () => {
                     <span>Plagiarism Analysis</span>
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <p className="text-gray-600">Code similarity check against our database of previous submissions</p>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Risk Level</h4>
-                      <Badge className="mt-1 bg-green-500 hover:bg-green-600 text-white">LOW RISK</Badge>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500">Similarity Score</h4>
-                      <p className="mt-1 text-2xl font-bold text-green-600">15%</p>
-                      <Progress value={15} className="h-2 mt-1" />
-                    </div>
-                  </div>
-                  <div className="bg-green-50 text-green-700 p-3 rounded-md flex items-center space-x-2 text-sm">
-                    <CheckCircle className="w-5 h-5" />
-                    <span>No plagiarism detected. The submitted code appears to be original work with minimal similarity to existing submissions in our database.</span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                      <div>
-                          <p><span className="font-semibold">Submissions Checked:</span> 1,247</p>
+                <CardContent>
+                  {plagiarismLoading ? (
+                    <div className="text-gray-500">Loading plagiarism analysis...</div>
+                  ) : plagiarismError ? (
+                    <div className="text-red-500">{plagiarismError}</div>
+                  ) : plagiarism ? (
+                    <>
+                      <p className="text-gray-600 mb-4">Code similarity check against our database of previous submissions</p>
+                      <div className="grid grid-cols-2 gap-4 items-start">
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-2">Risk Level</h4>
+                          <Badge className={`mt-1 ${getRiskBadgeClass(plagiarism.riskLevel)}`}>{plagiarism.riskLevel?.toUpperCase()} RISK</Badge>
+                        </div>
+                        <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-2">Similarity Score</h4>
+                          <p className="text-2xl font-bold text-green-600">{plagiarism.similarityScore}%</p>
+                          <Progress value={plagiarism.similarityScore} className="h-2" />
+                        </div>
                       </div>
-                      <div>
-                          <p><span className="font-semibold">Flagged Submissions:</span> 0</p>
+                      <div className={`plagiarism-status-message bg-${plagiarism.riskLevel === 'low' ? 'green' : plagiarism.riskLevel === 'medium' ? 'yellow' : 'red'}-50 text-${plagiarism.riskLevel === 'low' ? 'green' : plagiarism.riskLevel === 'medium' ? 'yellow' : 'red'}-700 p-3 rounded-md flex items-center space-x-2 text-sm`}>
+                        <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                        <span className="flex items-center">{plagiarism.statusMessage}</span>
                       </div>
-                      <div>
-                          <p><span className="font-semibold">Analysis Time:</span> 2.3 seconds</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <p className="font-semibold text-gray-600">Submissions Checked:</p>
+                          <p className="text-gray-800">{plagiarism.submissionsChecked}</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-600">Flagged Submissions:</p>
+                          <p className="text-gray-800">{plagiarism.flaggedSubmissions}</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-600">Analysis Time:</p>
+                          <p className="text-gray-800">{plagiarism.analysisTime} seconds</p>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-600">Confidence:</p>
+                          <p className="text-gray-800">{plagiarism.confidence}%</p>
+                        </div>
                       </div>
-                      <div>
-                          <p><span className="font-semibold">Confidence:</span> 98.7%</p>
-                      </div>
-                  </div>
+                    </>
+                  ) : (
+                    <div className="text-gray-500">No plagiarism data available.</div>
+                  )}
                 </CardContent>
               </Card>
             </div>

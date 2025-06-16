@@ -1,3 +1,4 @@
+// Main router setup for the backend API
 import express from "express";
 import authRouter from "./auth";
 import interviewsRouter from "./interviews";
@@ -12,6 +13,7 @@ import screenshotsRouter from "./screenshots";
 
 const router = express.Router();
 
+// Mount top-level routes
 router.use("/auth", authRouter);
 router.use("/users", usersRouter);
 router.use("/questions", questionsRouter);
